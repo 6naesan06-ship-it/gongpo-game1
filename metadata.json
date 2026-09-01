@@ -1,0 +1,6 @@
+{
+  "name": "폐가: 끝없는 미로 (Haunted Abandoned Mansion)",
+  "description": "으스스한 폐옥과 부적이 가득한 끝없는 목조 미로를 WASD로 탐험하는 3D 1인칭 심리 공포 어드벤처.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
