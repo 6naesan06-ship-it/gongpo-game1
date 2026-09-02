@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RelicItem, HauntedEvent, InventoryItem } from '../types';
+import { RelicItem, HauntedEvent, InventoryItem, BossState } from '../types';
 import {
   Compass,
   Flashlight,
@@ -23,7 +23,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Trophy,
-  RotateCcw
+  RotateCcw,
+  Heart,
+  Skull,
+  AlertTriangle
 } from 'lucide-react';
 
 interface MazeHUDProps {
@@ -41,12 +44,14 @@ interface MazeHUDProps {
   onNextSlot: () => void;
   onUseActiveItem: () => void;
   exorcisedGhostCount: number;
+  bossState: BossState;
   escapeModal: {
-    method: 'relics' | 'kills';
+    method: 'relics' | 'kills' | 'boss';
     exorcisedCount: number;
     depthMeters: number;
     roomsExplored: number;
     relicsCount: number;
+    bossDefeated?: boolean;
   } | null;
   onRestart: () => void;
   hoveredTarget: { name: string; description: string; distance: number } | null;
@@ -83,6 +88,7 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
   onNextSlot,
   onUseActiveItem,
   exorcisedGhostCount,
+  bossState,
   escapeModal,
   onRestart,
   hoveredTarget,
@@ -121,6 +127,9 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
   };
 
   const activeItem = inventory[activeSlotIndex] || inventory[0];
+  const isLowSanity = sanity <= 30;
+  const lowSanitySeverity = isLowSanity ? Math.min(1, Math.max(0, (30 - sanity) / 30)) : 0;
+  const isBossFight = bossState && bossState.active;
 
   return (
     <div className="absolute inset-0 pointer-events-none select-none z-10 flex flex-col justify-between p-3 sm:p-5 overflow-hidden font-sans">
@@ -131,122 +140,225 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
       <div
         className="absolute inset-0 pointer-events-none z-0 transition-opacity duration-300"
         style={{
-          boxShadow: `inset 0 0 ${100 - sanity * 0.7}px rgba(${sanity < 40 ? '110, 10, 10' : '0, 0, 0'}, ${0.45 + (100 - sanity) * 0.003})`,
+          boxShadow: `inset 0 0 ${100 - sanity * 0.7}px rgba(${isBossFight ? '90, 10, 60' : sanity < 40 ? '110, 10, 10' : '0, 0, 0'}, ${0.45 + (100 - sanity) * 0.003})`,
         }}
       />
 
-      {/* 2. Top Header Status Bar */}
-      <div className="relative z-10 flex items-start justify-between gap-2 sm:gap-3 pointer-events-auto">
-        {/* Left: Sanity & Exploration Depth */}
-        <div className="flex flex-col gap-2">
-          {/* Depth Counter & Exorcism Count */}
-          <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-2xl bg-neutral-950/85 border border-neutral-800 backdrop-blur-md text-xs font-mono shadow-lg">
-            <Footprints className="w-4 h-4 text-amber-400" />
-            <span className="text-neutral-400">심도:</span>
-            <span className="text-amber-400 font-bold text-sm tracking-wider">{depthMeters} m</span>
-            <span className="text-neutral-600">|</span>
-            <span className="text-neutral-400">방:</span>
-            <span className="text-neutral-200 font-semibold">{roomsExplored}</span>
-            {exorcisedGhostCount > 0 && (
-              <>
-                <span className="text-neutral-600">|</span>
-                <Ghost className="w-3.5 h-3.5 text-rose-400" />
-                <span className="text-rose-400 font-bold">{exorcisedGhostCount}위 퇴마</span>
-              </>
-            )}
-          </div>
+      {/* 2. Red Horror Vignette Overlay (Active when SAN <= 30%) */}
+      {isLowSanity && (
+        <>
+          {/* Outer Blood-red Radial Vignette with Cardiac Pulse */}
+          <div
+            className="absolute inset-0 pointer-events-none z-[1] transition-opacity duration-300 animate-pulse"
+            style={{
+              background: `radial-gradient(ellipse at center, transparent ${Math.max(15, 48 - lowSanitySeverity * 28)}%, rgba(190, 12, 12, ${0.4 + lowSanitySeverity * 0.45}) ${Math.max(50, 75 - lowSanitySeverity * 15)}%, rgba(95, 0, 0, ${0.75 + lowSanitySeverity * 0.22}) 100%)`,
+              boxShadow: `inset 0 0 ${80 + lowSanitySeverity * 120}px rgba(230, 20, 20, ${0.55 + lowSanitySeverity * 0.4})`,
+              animationDuration: `${Math.max(0.4, 1.2 - lowSanitySeverity * 0.7)}s`,
+            }}
+          />
+          {/* Peripheral Blood Vein Frame */}
+          <div
+            className="absolute inset-0 pointer-events-none z-[2] border-[8px] sm:border-[16px] border-red-700/40 transition-opacity duration-300 pointer-events-none"
+            style={{
+              opacity: 0.5 + lowSanitySeverity * 0.5,
+              boxShadow: `inset 0 0 50px rgba(255, 10, 10, ${0.35 + lowSanitySeverity * 0.5})`,
+            }}
+          />
+          {/* Extreme Low-Sanity Red Haze Flash when SAN <= 15% */}
+          {sanity <= 15 && (
+            <div
+              className="absolute inset-0 pointer-events-none z-[3] bg-red-950/25 mix-blend-color-burn animate-pulse pointer-events-none"
+              style={{ animationDuration: '0.45s' }}
+            />
+          )}
+        </>
+      )}
 
-          {/* Sanity Meter (SAN) */}
-          <div className="flex items-center gap-3 px-3.5 py-1.5 rounded-2xl bg-neutral-950/85 border border-neutral-800 backdrop-blur-md shadow-lg min-w-[190px]">
-            <Activity className={`w-4 h-4 ${sanity < 35 ? 'text-rose-500 animate-pulse' : 'text-emerald-400'}`} />
-            <div className="flex-1">
-              <div className="flex justify-between text-[11px] font-mono mb-1">
-                <span className="text-neutral-400">정신력 (SAN)</span>
-                <span className={`font-bold ${sanity < 35 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                  {Math.round(sanity)} %
-                </span>
-              </div>
-              <div className="w-full h-1.5 bg-neutral-900 rounded-full overflow-hidden border border-neutral-800">
-                <div
-                  className={`h-full transition-all duration-300 ${
-                    sanity < 35 ? 'bg-rose-600' : sanity < 60 ? 'bg-amber-500' : 'bg-emerald-500'
-                  }`}
-                  style={{ width: `${sanity}%` }}
-                />
+      {/* 3. Top Header Status Bar & Boss Health Bar */}
+      <div className="relative z-10 flex flex-col gap-2.5 pointer-events-auto">
+        <div className="flex items-start justify-between gap-2 sm:gap-3">
+          {/* Left: Sanity & Exploration Depth */}
+          <div className="flex flex-col gap-2">
+            {/* Depth Counter & Exorcism Count */}
+            <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-2xl bg-neutral-950/85 border border-neutral-800 backdrop-blur-md text-xs font-mono shadow-lg">
+              <Footprints className="w-4 h-4 text-amber-400" />
+              <span className="text-neutral-400">심도:</span>
+              <span className="text-amber-400 font-bold text-sm tracking-wider">{depthMeters} m</span>
+              <span className="text-neutral-600">|</span>
+              <span className="text-neutral-400">방:</span>
+              <span className="text-neutral-200 font-semibold">{roomsExplored}</span>
+              {exorcisedGhostCount > 0 && (
+                <>
+                  <span className="text-neutral-600">|</span>
+                  <Ghost className="w-3.5 h-3.5 text-rose-400" />
+                  <span className="text-rose-400 font-bold">{exorcisedGhostCount}위 퇴마</span>
+                </>
+              )}
+            </div>
+
+            {/* Sanity Meter (SAN) */}
+            <div
+              className={`flex items-center gap-3 px-3.5 py-1.5 rounded-2xl backdrop-blur-md shadow-lg min-w-[200px] transition-all duration-300 ${
+                isLowSanity
+                  ? 'bg-red-950/90 border border-red-600/80 ring-1 ring-red-500/50 animate-pulse'
+                  : 'bg-neutral-950/85 border border-neutral-800'
+              }`}
+            >
+              {isLowSanity ? (
+                <Heart className="w-4 h-4 text-red-500 animate-ping" />
+              ) : (
+                <Activity className={`w-4 h-4 ${sanity < 50 ? 'text-amber-500' : 'text-emerald-400'}`} />
+              )}
+              <div className="flex-1">
+                <div className="flex justify-between items-center text-[11px] font-mono mb-1">
+                  <span className={isLowSanity ? 'text-red-300 font-bold flex items-center gap-1' : 'text-neutral-400'}>
+                    정신력 (SAN)
+                    {isLowSanity && <span className="text-[10px] text-red-400 animate-pulse">(심장박동 위험)</span>}
+                  </span>
+                  <span className={`font-bold ${isLowSanity ? 'text-red-400' : sanity < 60 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                    {Math.round(sanity)} %
+                  </span>
+                </div>
+                <div className="w-full h-1.5 bg-neutral-900 rounded-full overflow-hidden border border-neutral-800">
+                  <div
+                    className={`h-full transition-all duration-300 ${
+                      isLowSanity ? 'bg-red-600' : sanity < 60 ? 'bg-amber-500' : 'bg-emerald-500'
+                    }`}
+                    style={{ width: `${sanity}%` }}
+                  />
+                </div>
               </div>
             </div>
           </div>
+
+          {/* Center: Antique Compass HUD (Hidden when Boss fight is active to show boss bar) */}
+          {!isBossFight && (
+            <div className="hidden md:flex items-center gap-2 px-4 py-2 rounded-2xl bg-neutral-950/85 border border-amber-950/70 backdrop-blur-md text-xs font-mono text-amber-300 shadow-xl">
+              <Compass className="w-4 h-4 text-amber-400" />
+              <span className="text-neutral-400">방위:</span>
+              <span className="font-bold text-amber-400">{currentCardinal}</span>
+              <span className="text-neutral-500 text-[10px]">({normalizedDegree}°)</span>
+            </div>
+          )}
+
+          {/* Right: Light Status, Codex & Quick Settings Buttons */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* Light Mode Indicator / Toggle */}
+            <button
+              onClick={onToggleLight}
+              className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-neutral-950/85 border border-neutral-800 hover:border-amber-600/80 backdrop-blur-md text-xs font-mono transition text-neutral-300 cursor-pointer shadow-md active:scale-95"
+              title="[F] 손전등/호롱불 모드 전환"
+            >
+              {lightMode === 'flashlight' && (
+                <>
+                  <Flashlight className="w-4 h-4 text-yellow-400" />
+                  <span className="hidden xs:inline text-yellow-400 font-semibold">회중전등</span>
+                  <span className="text-neutral-300 font-mono text-[11px]">{Math.round(battery)}%</span>
+                </>
+              )}
+              {lightMode === 'lantern' && (
+                <>
+                  <Flame className="w-4 h-4 text-amber-500 animate-pulse" />
+                  <span className="hidden xs:inline text-amber-400 font-semibold">호롱불</span>
+                </>
+              )}
+              {lightMode === 'off' && (
+                <>
+                  <Flashlight className="w-4 h-4 text-neutral-600" />
+                  <span className="hidden xs:inline text-neutral-500 font-semibold">소등</span>
+                </>
+              )}
+            </button>
+
+            {/* Relics Codex Button (Highlights 20 relics goal) */}
+            <button
+              onClick={() => handleOpenModal('codex')}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-neutral-950/85 border backdrop-blur-md text-xs font-mono transition cursor-pointer shadow-md ${
+                collectedRelics.length >= 20
+                  ? 'border-rose-500/80 text-rose-300 animate-pulse'
+                  : 'border-neutral-800 hover:border-amber-600/70 text-neutral-300 hover:text-amber-300'
+              }`}
+              title="수습한 유물 도감 (20개 수습 시 어둑시니 결계 해방)"
+            >
+              <BookOpen className="w-4 h-4 text-amber-400" />
+              <span className="hidden sm:inline">유물</span>
+              <span className={`px-1.5 py-0.5 rounded-full border text-[10px] font-bold ${
+                collectedRelics.length >= 20
+                  ? 'bg-rose-950 border-rose-600 text-rose-300'
+                  : 'bg-amber-950/80 border-amber-800 text-amber-300'
+              }`}>
+                {collectedRelics.length}/20
+              </span>
+            </button>
+
+            {/* Settings Button */}
+            <button
+              onClick={() => handleOpenModal('settings')}
+              className="flex items-center gap-1 px-3 py-2 rounded-2xl bg-neutral-950/85 border border-neutral-800 hover:border-cyan-600 backdrop-blur-md text-xs font-mono text-neutral-300 hover:text-cyan-300 transition cursor-pointer shadow-md"
+              title="밝기 및 감도 설정"
+            >
+              <Sliders className="w-4 h-4 text-cyan-400" />
+              <span className="hidden sm:inline">설정</span>
+            </button>
+
+            {/* Sound Toggle */}
+            <button
+              onClick={onToggleSound}
+              className="p-2 rounded-2xl bg-neutral-950/85 border border-neutral-800 hover:border-neutral-700 backdrop-blur-md text-neutral-300 transition cursor-pointer"
+              title="사운드 켜기/끄기"
+            >
+              {soundEnabled ? <Volume2 className="w-4 h-4 text-emerald-400" /> : <VolumeX className="w-4 h-4 text-rose-500" />}
+            </button>
+          </div>
         </div>
 
-        {/* Center: Antique Compass HUD */}
-        <div className="hidden md:flex items-center gap-2 px-4 py-2 rounded-2xl bg-neutral-950/85 border border-amber-950/70 backdrop-blur-md text-xs font-mono text-amber-300 shadow-xl">
-          <Compass className="w-4 h-4 text-amber-400" />
-          <span className="text-neutral-400">방위:</span>
-          <span className="font-bold text-amber-400">{currentCardinal}</span>
-          <span className="text-neutral-500 text-[10px]">({normalizedDegree}°)</span>
-        </div>
+        {/* BOSS HEALTH BAR (Appears when Eoduksini Boss Battle is Active) */}
+        {isBossFight && (
+          <div className="self-center w-full max-w-2xl px-4 py-2.5 rounded-3xl bg-neutral-950/95 border-2 border-rose-600/90 shadow-[0_0_35px_rgba(225,29,72,0.4)] backdrop-blur-xl animate-fade-in flex flex-col gap-1.5">
+            <div className="flex items-center justify-between font-mono">
+              <div className="flex items-center gap-2">
+                <Skull className={`w-5 h-5 ${bossState.isEnraged ? 'text-red-500 animate-bounce' : 'text-rose-400'}`} />
+                <span className="text-sm font-extrabold text-rose-300 tracking-wider">
+                  {bossState.name}
+                  {bossState.isEnraged ? ' [2단계: 암흑 폭주]' : ' [1단계: 흑야의 형상]'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-xs font-bold text-rose-400">
+                <span>사인참사검 타격:</span>
+                <span className="text-sm font-mono text-white bg-rose-950 px-2 py-0.5 rounded-lg border border-rose-700">
+                  {bossState.currentHp} / {bossState.maxHp} 격
+                </span>
+              </div>
+            </div>
 
-        {/* Right: Light Status, Codex & Quick Settings Buttons */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Light Mode Indicator / Toggle */}
-          <button
-            onClick={onToggleLight}
-            className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-neutral-950/85 border border-neutral-800 hover:border-amber-600/80 backdrop-blur-md text-xs font-mono transition text-neutral-300 cursor-pointer shadow-md active:scale-95"
-            title="[F] 손전등/호롱불 모드 전환"
-          >
-            {lightMode === 'flashlight' && (
-              <>
-                <Flashlight className="w-4 h-4 text-yellow-400" />
-                <span className="hidden xs:inline text-yellow-400 font-semibold">회중전등</span>
-                <span className="text-neutral-300 font-mono text-[11px]">{Math.round(battery)}%</span>
-              </>
+            {/* 15 Hit Health Bar Segments */}
+            <div className="w-full h-3 bg-neutral-900 rounded-full overflow-hidden border border-rose-900/80 flex gap-0.5 p-0.5">
+              {Array.from({ length: bossState.maxHp }).map((_, i) => {
+                const isFilled = i < bossState.currentHp;
+                return (
+                  <div
+                    key={i}
+                    className={`flex-1 h-full rounded-sm transition-all duration-300 ${
+                      isFilled
+                        ? bossState.isEnraged
+                          ? 'bg-gradient-to-t from-red-700 to-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.6)]'
+                          : 'bg-gradient-to-t from-purple-800 to-rose-500'
+                        : 'bg-neutral-950 opacity-40'
+                    }`}
+                  />
+                );
+              })}
+            </div>
+
+            {/* Attack Warning Banner */}
+            {bossState.attackWarning && (
+              <div className="flex items-center justify-center gap-1.5 py-1 px-3 rounded-xl bg-red-950/90 border border-red-500 text-red-200 text-xs font-mono font-bold animate-pulse">
+                <AlertTriangle className="w-4 h-4 text-yellow-400" />
+                <span>{bossState.attackWarning}</span>
+              </div>
             )}
-            {lightMode === 'lantern' && (
-              <>
-                <Flame className="w-4 h-4 text-amber-500 animate-pulse" />
-                <span className="hidden xs:inline text-amber-400 font-semibold">호롱불</span>
-              </>
-            )}
-            {lightMode === 'off' && (
-              <>
-                <Flashlight className="w-4 h-4 text-neutral-600" />
-                <span className="hidden xs:inline text-neutral-500 font-semibold">소등</span>
-              </>
-            )}
-          </button>
-
-          {/* Relics Codex Button */}
-          <button
-            onClick={() => handleOpenModal('codex')}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-neutral-950/85 border border-neutral-800 hover:border-amber-600/70 backdrop-blur-md text-xs font-mono text-neutral-300 hover:text-amber-300 transition cursor-pointer shadow-md"
-            title="수습한 유물 도감"
-          >
-            <BookOpen className="w-4 h-4 text-amber-400" />
-            <span className="hidden sm:inline">도감</span>
-            <span className="px-1.5 py-0.5 rounded-full bg-amber-950/80 border border-amber-800 text-[10px] text-amber-300 font-bold">
-              {collectedRelics.length}
-            </span>
-          </button>
-
-          {/* Settings Button */}
-          <button
-            onClick={() => handleOpenModal('settings')}
-            className="flex items-center gap-1 px-3 py-2 rounded-2xl bg-neutral-950/85 border border-neutral-800 hover:border-cyan-600 backdrop-blur-md text-xs font-mono text-neutral-300 hover:text-cyan-300 transition cursor-pointer shadow-md"
-            title="밝기 및 감도 설정"
-          >
-            <Sliders className="w-4 h-4 text-cyan-400" />
-            <span className="hidden sm:inline">설정</span>
-          </button>
-
-          {/* Sound Toggle */}
-          <button
-            onClick={onToggleSound}
-            className="p-2 rounded-2xl bg-neutral-950/85 border border-neutral-800 hover:border-neutral-700 backdrop-blur-md text-neutral-300 transition cursor-pointer"
-            title="사운드 켜기/끄기"
-          >
-            {soundEnabled ? <Volume2 className="w-4 h-4 text-emerald-400" /> : <VolumeX className="w-4 h-4 text-rose-500" />}
-          </button>
-        </div>
+          </div>
+        )}
       </div>
 
       {/* 3. Center Reticle / Crosshair & Interaction Prompt */}
@@ -302,7 +414,9 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
             {activeItem.id === 'flashlight'
               ? '[F / 클릭] 전등 켜기/끄기'
               : activeItem.unlocked
-              ? '[F / 좌클릭] 악귀 봉인 퇴마 발동'
+              ? activeItem.id === 'exorcism_sword'
+                ? '[F / 좌클릭] 사인참사검 검기 참격 (어둑시니 1타격)'
+                : '[F / 좌클릭] 구천응원 봉인부적 결계 (기절 및 타격)'
               : '미로 속 안치실에서 획득 필요'}
           </span>
           <span className="text-neutral-600">|</span>
@@ -408,7 +522,7 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
             <span className="text-neutral-700">•</span>
             <div><strong className="text-amber-400">E 키</strong> 문 열기·조사</div>
             <span className="text-neutral-700">•</span>
-            <div><strong className="text-cyan-300">F/클릭</strong> 아이템 사용(퇴마)</div>
+            <div><strong className="text-cyan-300">F/클릭</strong> 아이템 사용(사인검 베기)</div>
           </div>
 
           {/* Stamina Bar */}
@@ -678,7 +792,7 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
             <div className="flex items-center justify-between border-b border-neutral-800 pb-3 mb-4">
               <div className="flex items-center gap-2 text-amber-400 font-bold text-lg font-mono">
                 <BookOpen className="w-5 h-5" />
-                <span>수습한 폐옥 유물 도감 ({collectedRelics.length}종 발견)</span>
+                <span>수습한 폐옥 유물 도감 ({collectedRelics.length} / 20종 발견)</span>
               </div>
               <button
                 onClick={() => setShowCodex(false)}
@@ -695,7 +809,7 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
                   <Ghost className="w-10 h-10 mx-auto mb-2 opacity-40" />
                   <p>아직 수습된 유물이 없습니다.</p>
                   <p className="text-xs text-neutral-600 mt-1">
-                    미로 속 제단실, 헛간, 부적 벽면을 조사([E])하여 유물과 기록을 모으세요.
+                    미로 속 제단실, 헛간, 부적 벽면을 조사([E])하여 유물 20개를 모아 어둑시니 결계를 해제하세요.
                   </p>
                 </div>
               ) : (
@@ -730,33 +844,39 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
         </div>
       )}
 
-      {/* 10. Escape Victory Screen (비밀 탈출 조건 달성 시) */}
+      {/* 10. Escape & Boss Victory Screen */}
       {escapeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-6 backdrop-blur-xl pointer-events-auto">
-          <div className="relative max-w-xl w-full bg-neutral-950 border border-amber-500/80 rounded-3xl p-8 shadow-[0_0_50px_rgba(245,158,11,0.3)] flex flex-col items-center text-center animate-fade-in">
+          <div className="relative max-w-xl w-full bg-neutral-950 border-2 border-amber-500/90 rounded-3xl p-8 shadow-[0_0_60px_rgba(245,158,11,0.4)] flex flex-col items-center text-center animate-fade-in">
             {/* Victory Badge */}
             <div className="w-16 h-16 rounded-full bg-amber-500/20 border border-amber-400 flex items-center justify-center text-amber-400 mb-4 shadow-[0_0_25px_rgba(245,158,11,0.5)]">
               <Trophy className="w-8 h-8" />
             </div>
 
             <h2 className="text-2xl sm:text-3xl font-extrabold text-amber-300 font-mono">
-              [폐가 탈출 성공: 미로의 결계 해제]
+              {escapeModal.method === 'boss' || escapeModal.bossDefeated
+                ? '[어둑시니 토벌 대성공: 결계 완전 소멸]'
+                : '[폐가 탈출 성공: 미로의 결계 해제]'}
             </h2>
-            <p className="text-xs font-mono text-amber-500/90 mt-1">
-              {escapeModal.method === 'relics'
-                ? '신성한 두 가지 퇴마 신물(봉인부적 & 사인참사검)을 모두 수습하여 미로의 저주를 정화했습니다!'
+            <p className="text-xs font-mono text-amber-400/90 mt-1">
+              {escapeModal.method === 'boss' || escapeModal.bossDefeated
+                ? '20개의 신성한 유물을 공명시키고 사인참사검(四寅斬邪劍)으로 거대 요괴 어둑시니를 15연격으로 베어 소멸시켰습니다!'
+                : escapeModal.method === 'relics'
+                ? '신성한 퇴마 신물을 수습하여 미로의 저주를 정화했습니다!'
                 : '백여 위의 원혼을 모조리 베어 퇴마하여 폐옥의 결계를 완벽하게 정화 파괴했습니다!'}
             </p>
 
             <div className="my-5 p-4 rounded-2xl bg-neutral-900/80 border border-neutral-800 text-xs text-neutral-300 font-mono leading-relaxed text-left space-y-2">
               <p className="text-amber-300 font-semibold">
-                새벽녘의 여명과 함께 폐가의 뒤틀린 시공간이 본래 모습을 되찾았습니다. 무한히 반복되던 낡은 회랑과 방문들이 열리며 바깥세상으로의 탈출로가 열렸습니다.
+                {escapeModal.method === 'boss' || escapeModal.bossDefeated
+                  ? '어둑시니의 거대한 그림자가 사인참사검의 신성한 칼날에 조각나며 허공으로 흩어졌습니다. 폐가 전체를 감싸고 있던 흑야의 저주가 산산이 부서지며 푸른 아침 햇살이 폐옥을 비춥니다.'
+                  : '새벽녘의 여명과 함께 폐가의 뒤틀린 시공간이 본래 모습을 되찾았습니다. 무한히 반복되던 낡은 회랑과 방문들이 열리며 바깥세상으로의 탈출로가 열렸습니다.'}
               </p>
               <div className="grid grid-cols-2 gap-2 pt-2 border-t border-neutral-800 text-[11px]">
                 <div>• 최종 탐험 심도: <span className="text-amber-400 font-bold">{escapeModal.depthMeters}m</span></div>
                 <div>• 돌파한 방의 수: <span className="text-emerald-400 font-bold">{escapeModal.roomsExplored}개소</span></div>
                 <div>• 정화 퇴마한 원혼: <span className="text-rose-400 font-bold">{escapeModal.exorcisedCount}위</span></div>
-                <div>• 수습한 괴담 유물: <span className="text-cyan-400 font-bold">{escapeModal.relicsCount}개</span></div>
+                <div>• 수습한 괴담 유물: <span className="text-cyan-400 font-bold">{escapeModal.relicsCount} / 20개</span></div>
               </div>
             </div>
 

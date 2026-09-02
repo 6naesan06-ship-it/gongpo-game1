@@ -5,8 +5,12 @@ class MazeHorrorAudio {
   private isMuted: boolean = false;
   private ambientGain: GainNode | null = null;
   private windGain: GainNode | null = null;
-  private heartbeatInterval: number | null = null;
+  private tensionGain: GainNode | null = null;
   private isInitialized: boolean = false;
+
+  // Heartbeat loop state
+  private lastHeartbeatBeatTime: number = 0;
+  private isHeartbeatActive: boolean = false;
 
   public init() {
     if (this.isInitialized) return;
@@ -304,32 +308,89 @@ class MazeHorrorAudio {
   }
 
   // Heartbeat pulse (triggers when sanity is low or phantom is near)
-  public playHeartbeat(bpm: number = 80) {
+  public playHeartbeat(bpm: number = 80, customVolume: number = 0.45) {
     if (this.isMuted) return;
     this.ensureCtx();
     if (!this.ctx) return;
 
     const t = this.ctx.currentTime;
-    // Lub-dub double thud
-    const makeThud = (timeOffset: number, freq: number, vol: number) => {
+    // Lub-dub deep organic cardiac thuds with harmonic resonance
+    const makeThud = (timeOffset: number, startFreq: number, endFreq: number, vol: number) => {
       if (!this.ctx) return;
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
+      const filter = this.ctx.createBiquadFilter();
+
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, t + timeOffset);
-      osc.frequency.exponentialRampToValueAtTime(30, t + timeOffset + 0.1);
+      osc.frequency.setValueAtTime(startFreq, t + timeOffset);
+      osc.frequency.exponentialRampToValueAtTime(endFreq, t + timeOffset + 0.12);
 
-      gain.gain.setValueAtTime(vol, t + timeOffset);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + timeOffset + 0.15);
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(140, t + timeOffset);
 
-      osc.connect(gain);
+      gain.gain.setValueAtTime(0.001, t + timeOffset);
+      gain.gain.linearRampToValueAtTime(vol, t + timeOffset + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + timeOffset + 0.18);
+
+      osc.connect(filter);
+      filter.connect(gain);
       gain.connect(this.ctx.destination);
+
       osc.start(t + timeOffset);
-      osc.stop(t + timeOffset + 0.16);
+      osc.stop(t + timeOffset + 0.2);
     };
 
-    makeThud(0, 75, 0.4);
-    makeThud(0.12, 60, 0.3);
+    // First heavy ventricular systole (Lub)
+    makeThud(0, 82, 28, customVolume);
+    // Second diastolic snap (Dub)
+    makeThud(0.13, 68, 22, customVolume * 0.78);
+  }
+
+  // Real-time sanity-driven heartbeat loop (called every frame)
+  public updateSanityHeartbeat(sanity: number, phantomNear: boolean = false) {
+    if (this.isMuted) return;
+
+    // Trigger condition: Sanity is 30% or below, or a phantom is within close distance
+    const isCritical = sanity <= 30 || phantomNear;
+
+    if (!isCritical) {
+      this.isHeartbeatActive = false;
+      return;
+    }
+
+    this.isHeartbeatActive = true;
+    const now = performance.now();
+
+    // Calculate BPM and intensity based on sanity depth
+    let targetBpm = 85;
+    let volume = 0.45;
+
+    if (phantomNear && sanity > 30) {
+      targetBpm = 100;
+      volume = 0.55;
+    } else if (sanity <= 30 && sanity > 20) {
+      // 20% ~ 30%: Anxious pace
+      const factor = (30 - sanity) / 10; // 0 to 1
+      targetBpm = 85 + factor * 25; // 85 -> 110 BPM
+      volume = 0.45 + factor * 0.15; // 0.45 -> 0.60
+    } else if (sanity <= 20 && sanity > 10) {
+      // 10% ~ 20%: Panic pace
+      const factor = (20 - sanity) / 10;
+      targetBpm = 110 + factor * 30; // 110 -> 140 BPM
+      volume = 0.60 + factor * 0.20; // 0.60 -> 0.80
+    } else if (sanity <= 10) {
+      // 0% ~ 10%: Extreme terror & cardiac tachycardia
+      const factor = (10 - sanity) / 10;
+      targetBpm = 140 + factor * 35; // 140 -> 175 BPM
+      volume = 0.80 + factor * 0.25; // 0.80 -> 1.05
+    }
+
+    const intervalMs = (60 / targetBpm) * 1000;
+
+    if (now - this.lastHeartbeatBeatTime >= intervalMs) {
+      this.lastHeartbeatBeatTime = now;
+      this.playHeartbeat(targetBpm, volume);
+    }
   }
 
   // Ghost whisper / eerie sting
@@ -582,6 +643,302 @@ class MazeHorrorAudio {
     });
   }
 
+  // Boss Battle BGM & Soundscapes
+  private bossDrumInterval: number | null = null;
+  private isBossBgmActive: boolean = false;
+
+  public startBossBgm() {
+    if (this.isBossBgmActive) return;
+    this.isBossBgmActive = true;
+    this.ensureCtx();
+
+    // Intense Korean shaman drum (대북) pulse & dark rhythmic drone
+    let beat = 0;
+    const playDrumPattern = () => {
+      if (!this.isBossBgmActive || !this.ctx || this.isMuted) return;
+      const t = this.ctx.currentTime;
+
+      // Heavy bass drum hit (Dung)
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      const isAccent = beat % 4 === 0;
+      const freq = isAccent ? 52 : 64;
+      osc.frequency.setValueAtTime(freq, t);
+      osc.frequency.exponentialRampToValueAtTime(24, t + 0.35);
+
+      gain.gain.setValueAtTime(isAccent ? 0.5 : 0.3, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.38);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.4);
+
+      // Clanging metallic rhythm on accented beats
+      if (isAccent && Math.random() > 0.3) {
+        const gongOsc = this.ctx.createOscillator();
+        const gongGain = this.ctx.createGain();
+        gongOsc.type = 'sawtooth';
+        gongOsc.frequency.setValueAtTime(320, t);
+        gongOsc.frequency.exponentialRampToValueAtTime(140, t + 0.6);
+
+        const gongFilter = this.ctx.createBiquadFilter();
+        gongFilter.type = 'bandpass';
+        gongFilter.frequency.setValueAtTime(450, t);
+
+        gongGain.gain.setValueAtTime(0.18, t);
+        gongGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.65);
+
+        gongOsc.connect(gongFilter);
+        gongFilter.connect(gongGain);
+        gongGain.connect(this.ctx.destination);
+        gongOsc.start(t);
+        gongOsc.stop(t + 0.7);
+      }
+
+      beat++;
+    };
+
+    // 130 BPM rhythm interval (~230ms per eighth note)
+    this.bossDrumInterval = window.setInterval(playDrumPattern, 230);
+  }
+
+  public stopBossBgm() {
+    this.isBossBgmActive = false;
+    if (this.bossDrumInterval !== null) {
+      clearInterval(this.bossDrumInterval);
+      this.bossDrumInterval = null;
+    }
+  }
+
+  // Boss Battle Intro Roar & Realm Transition Gong
+  public playBossIntro() {
+    if (this.isMuted) return;
+    this.ensureCtx();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+
+    // 1. Deep Sub-bass realm tear
+    const subOsc = this.ctx.createOscillator();
+    const subGain = this.ctx.createGain();
+    subOsc.type = 'sawtooth';
+    subOsc.frequency.setValueAtTime(90, t);
+    subOsc.frequency.exponentialRampToValueAtTime(28, t + 2.5);
+
+    subGain.gain.setValueAtTime(0.6, t);
+    subGain.gain.exponentialRampToValueAtTime(0.001, t + 2.8);
+
+    subOsc.connect(subGain);
+    subGain.connect(this.ctx.destination);
+    subOsc.start(t);
+    subOsc.stop(t + 2.9);
+
+    // 2. Dark mythical bell toll
+    const bellFreqs = [146.83, 220.0, 293.66, 440.0];
+    bellFreqs.forEach((freq) => {
+      if (!this.ctx) return;
+      const bell = this.ctx.createOscillator();
+      const bGain = this.ctx.createGain();
+      bell.type = 'triangle';
+      bell.frequency.setValueAtTime(freq, t);
+
+      bGain.gain.setValueAtTime(0.25, t);
+      bGain.gain.exponentialRampToValueAtTime(0.0001, t + 3.2);
+
+      bell.connect(bGain);
+      bGain.connect(this.ctx.destination);
+      bell.start(t);
+      bell.stop(t + 3.3);
+    });
+
+    // 3. Eoduksini monstrous shadow roar
+    this.playBossRoar();
+  }
+
+  // Eoduksini monstrous roar
+  public playBossRoar() {
+    if (this.isMuted) return;
+    this.ensureCtx();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+
+    // Monster screech + guttural growl
+    const osc1 = this.ctx.createOscillator();
+    const osc2 = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    const filter = this.ctx.createBiquadFilter();
+
+    osc1.type = 'sawtooth';
+    osc1.frequency.setValueAtTime(110, t);
+    osc1.frequency.linearRampToValueAtTime(220, t + 0.4);
+    osc1.frequency.exponentialRampToValueAtTime(45, t + 1.8);
+
+    osc2.type = 'sawtooth';
+    osc2.frequency.setValueAtTime(80, t);
+    osc2.frequency.linearRampToValueAtTime(160, t + 0.4);
+    osc2.frequency.exponentialRampToValueAtTime(35, t + 1.8);
+
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(650, t);
+    filter.frequency.linearRampToValueAtTime(1200, t + 0.4);
+    filter.frequency.exponentialRampToValueAtTime(200, t + 1.8);
+    filter.Q.setValueAtTime(3.0, t);
+
+    gain.gain.setValueAtTime(0.01, t);
+    gain.gain.linearRampToValueAtTime(0.55, t + 0.35);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 1.85);
+
+    osc1.connect(filter);
+    osc2.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc1.start(t);
+    osc2.start(t);
+    osc1.stop(t + 1.9);
+    osc2.stop(t + 1.9);
+  }
+
+  // Boss Shadow Ground Slam / Shockwave
+  public playBossSlam() {
+    if (this.isMuted) return;
+    this.ensureCtx();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+
+    // Heavy earth-shattering thud
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(120, t);
+    osc.frequency.exponentialRampToValueAtTime(25, t + 0.6);
+
+    gain.gain.setValueAtTime(0.7, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.7);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.75);
+
+    // Dark rumble burst
+    const bufferSize = this.ctx.sampleRate * 0.4;
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.1));
+    }
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(280, t);
+    filter.frequency.exponentialRampToValueAtTime(60, t + 0.35);
+
+    const nGain = this.ctx.createGain();
+    nGain.gain.setValueAtTime(0.5, t);
+    nGain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+
+    noise.connect(filter);
+    filter.connect(nGain);
+    nGain.connect(this.ctx.destination);
+    noise.start(t);
+  }
+
+  // Boss Hit Reaction (Sa-in Sword Strike Clang & Holy Sparks)
+  public playBossHit(currentHp: number) {
+    if (this.isMuted) return;
+    this.ensureCtx();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+
+    // 1. Crisp sword steel impact & divine chime
+    const swordOsc = this.ctx.createOscillator();
+    const swordGain = this.ctx.createGain();
+    swordOsc.type = 'triangle';
+    swordOsc.frequency.setValueAtTime(1800, t);
+    swordOsc.frequency.exponentialRampToValueAtTime(400, t + 0.2);
+
+    swordGain.gain.setValueAtTime(0.45, t);
+    swordGain.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+
+    swordOsc.connect(swordGain);
+    swordGain.connect(this.ctx.destination);
+    swordOsc.start(t);
+    swordOsc.stop(t + 0.26);
+
+    // 2. Agonized shadow shriek
+    const shriek = this.ctx.createOscillator();
+    const sGain = this.ctx.createGain();
+    const sFilter = this.ctx.createBiquadFilter();
+
+    shriek.type = 'sawtooth';
+    shriek.frequency.setValueAtTime(380, t);
+    shriek.frequency.exponentialRampToValueAtTime(90, t + 0.45);
+
+    sFilter.type = 'bandpass';
+    sFilter.frequency.setValueAtTime(600, t);
+    sFilter.Q.setValueAtTime(4.0, t);
+
+    sGain.gain.setValueAtTime(0.35, t);
+    sGain.gain.exponentialRampToValueAtTime(0.001, t + 0.48);
+
+    shriek.connect(sFilter);
+    sFilter.connect(sGain);
+    sGain.connect(this.ctx.destination);
+    shriek.start(t);
+    shriek.stop(t + 0.5);
+
+    // 3. Holy chime resonance (pitch climbs higher as boss HP gets lower!)
+    const pitch = 523.25 + (15 - currentHp) * 35;
+    const chime = this.ctx.createOscillator();
+    const cGain = this.ctx.createGain();
+    chime.type = 'sine';
+    chime.frequency.setValueAtTime(pitch, t);
+
+    cGain.gain.setValueAtTime(0.2, t);
+    cGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.8);
+
+    chime.connect(cGain);
+    cGain.connect(this.ctx.destination);
+    chime.start(t);
+    chime.stop(t + 0.85);
+  }
+
+  // Boss Defeat & Exorcism Grand Fanfare
+  public playBossDefeat() {
+    if (this.isMuted) return;
+    this.stopBossBgm();
+    this.ensureCtx();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+
+    // Grand celestial pentatonic chord resolution + temple gong
+    const grandChords = [130.81, 196.0, 261.63, 329.63, 392.0, 523.25, 659.25, 1046.5];
+    grandChords.forEach((freq, idx) => {
+      if (!this.ctx) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t + idx * 0.05);
+
+      gain.gain.setValueAtTime(0.001, t + idx * 0.05);
+      gain.gain.linearRampToValueAtTime(0.35 / (idx * 0.4 + 1), t + idx * 0.05 + 0.06);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 4.5);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(t + idx * 0.05);
+      osc.stop(t + 4.8);
+    });
+  }
+
   // Escape Victory / Barrier Broken fanfare
   public playEscapeVictory() {
     if (this.isMuted) return;
@@ -609,7 +966,8 @@ class MazeHorrorAudio {
   }
 
   public destroy() {
-    if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
+    this.stopBossBgm();
+    this.isHeartbeatActive = false;
     if (this.ctx) {
       try {
         this.ctx.close();

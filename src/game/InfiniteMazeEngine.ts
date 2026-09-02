@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { AbandonedMansionAssets } from './proceduralAssets';
 import { mazeAudio } from '../audio/mazeHorrorAudio';
-import { RelicItem, HauntedEvent, InventorySlotItem, EscapeVictoryData } from '../types';
+import { RelicItem, HauntedEvent, InventorySlotItem, EscapeVictoryData, BossState } from '../types';
 
 export interface ChunkInfo {
   gx: number;
@@ -33,6 +33,8 @@ export interface ActiveDoor {
 
 export interface ActiveGhost {
   id: string;
+  name: string;
+  variant: 'white_robe' | 'shadow_specter';
   mesh: THREE.Group;
   pos: THREE.Vector3;
   targetPos: THREE.Vector3;
@@ -101,6 +103,28 @@ export class InfiniteMazeEngine {
   public hasTalisman: boolean = false;
   public hasSword: boolean = false;
   public isEscaped: boolean = false;
+  public escapeMethod: 'relics' | 'kills' | 'boss' = 'relics';
+
+  // Boss Battle State: Eoduksini (어둑시니 보스전)
+  public isBossFightActive: boolean = false;
+  public bossState: BossState = {
+    active: false,
+    name: '어둑시니',
+    maxHp: 15,
+    currentHp: 15,
+    phase: 1,
+    isStaggered: false,
+    isEnraged: false,
+    attackWarning: null,
+  };
+  public bossMesh: THREE.Group | null = null;
+  public bossArenaGroup: THREE.Group | null = null;
+  public bossPos: THREE.Vector3 = new THREE.Vector3(0, 0, -5.5);
+  private bossTimer: number = 0;
+  private bossAttackTimer: number = 4.2;
+  private bossTeleportTimer: number = 8.0;
+  private bossStaggerTimer: number = 0;
+  private bossRoarCooldown: number = 0;
 
   // Viewmodels
   private viewmodelGroup: THREE.Group;
@@ -135,10 +159,11 @@ export class InfiniteMazeEngine {
   private lastTouchX: number = 0;
   private lastTouchY: number = 0;
 
-  // World Generation & Chunks (Optimized for smooth 60fps & spacious mansion)
+  // World Generation & Chunks (Optimized for ultra-smooth 60fps & zero-lag room transitions on PC/Laptop)
   public chunkSize: number = 8.5; // 8.5m per room
-  public chunkRadius: number = 3; // 7x7 active chunks for seamless draw distance and smooth traversal
+  public chunkRadius: number = 1; // 3x3 active grid (9 rooms) perfectly covers field of view through doorways with 0 hitching
   private activeChunks: Map<string, ChunkInfo> = new Map();
+  private chunkCache: Map<string, ChunkInfo> = new Map();
   private lastChunkX: number = 99999;
   private lastChunkZ: number = 99999;
 
@@ -181,7 +206,7 @@ export class InfiniteMazeEngine {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x0e1118);
     // Softer fog for better visibility across the expanded rooms
-    this.scene.fog = new THREE.FogExp2(0x10141d, 0.026);
+    this.scene.fog = new THREE.FogExp2(0x10141d, 0.030);
 
     // 2. Camera with expanded far frustum
     this.camera = new THREE.PerspectiveCamera(
@@ -193,12 +218,16 @@ export class InfiniteMazeEngine {
     this.camera.position.copy(this.playerPos);
     this.scene.add(this.camera);
 
-    // 3. Renderer with high exposure tone mapping
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    // 3. Optimized Renderer with high exposure tone mapping & balanced pixel ratio for smooth 60fps on PC/laptops
+    this.renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      powerPreference: 'high-performance',
+      precision: 'mediump',
+    });
     this.renderer.setSize(container.clientWidth, container.clientHeight);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap; // Ultra-fast PCF shadow filtering for PC and laptop GPUs
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.35;
     container.appendChild(this.renderer.domElement);
@@ -238,12 +267,10 @@ export class InfiniteMazeEngine {
     this.vmFlashlight.rotation.set(-0.05, 0.08, 0);
     this.viewmodelGroup.add(this.vmFlashlight);
 
-    // Viewmodel Sealing Talisman
+    // Viewmodel Sealing Talisman (Emissive holy glow)
     this.vmTalisman = new THREE.Group();
     const talMesh = AbandonedMansionAssets.createTalisman(0.48);
     this.vmTalisman.add(talMesh);
-    const talLight = new THREE.PointLight(0xffaa00, 2.0, 3.0);
-    this.vmTalisman.add(talLight);
     this.vmTalisman.position.set(0.2, -0.18, -0.38);
     this.vmTalisman.rotation.set(0.12, -0.15, 0.05);
     this.vmTalisman.visible = false;
@@ -266,72 +293,71 @@ export class InfiniteMazeEngine {
     // 8. Initial Chunk Generation
     this.updateChunks();
 
-    // 9. Place 2 Persistent Roaming Ghosts (slower than player, persistent everywhere)
-    this.initTwoGhosts();
+    // 9. Pre-warm WebGL Shaders to eliminate runtime pipeline compilation hitching
+    try {
+      this.renderer.compile(this.scene, this.camera);
+    } catch {
+      // safe fallback
+    }
 
-    // 10. Start Loop
+    // 10. Place Persistent Roaming Ghosts across the mansion
+    this.initTenGhosts();
+
+    // 11. Start Loop
     this.animate();
   }
 
-  // Exactly 2 persistent ghosts placed in the mansion, slower than player
-  private initTwoGhosts() {
+  // Balanced 4 persistent Korean folk ghosts with optimized AI & smooth 60fps
+  private initTenGhosts() {
     // Clear any previous ghosts
     for (const g of this.dynamicGhosts) {
       this.scene.remove(g.mesh);
     }
     this.dynamicGhosts = [];
 
-    // Ghost 1: White Robe Maiden Ghost (소복 처녀귀신)
-    const g1Mesh = AbandonedMansionAssets.createGhostFigure('white_robe');
-    const g1x = this.chunkSize * 1.5;
-    const g1z = this.chunkSize * 1.5;
-    g1Mesh.position.set(g1x, 0, g1z);
-    this.scene.add(g1Mesh);
+    const ghostConfigs: {
+      id: string;
+      name: string;
+      variant: 'white_robe' | 'shadow_specter';
+      gx: number;
+      gz: number;
+      speed: number;
+      bobOffset: number;
+    }[] = [
+      { id: 'ghost_white_maiden', name: '소복 처녀귀신', variant: 'white_robe', gx: 1, gz: 1, speed: 1.30, bobOffset: 0 },
+      { id: 'ghost_shadow_specter', name: '저승 그림자 망령', variant: 'shadow_specter', gx: -1, gz: -1, speed: 1.15, bobOffset: 1.0 },
+      { id: 'ghost_water_spirit', name: '원한 서린 물귀신', variant: 'white_robe', gx: 1, gz: -1, speed: 1.25, bobOffset: 2.1 },
+      { id: 'ghost_unsealed_evil', name: '봉인 풀린 악령', variant: 'shadow_specter', gx: -1, gz: 1, speed: 1.20, bobOffset: 3.2 },
+    ];
 
-    const ghost1: ActiveGhost = {
-      id: 'ghost_white_maiden',
-      mesh: g1Mesh,
-      pos: new THREE.Vector3(g1x, 0, g1z),
-      targetPos: new THREE.Vector3(g1x, 0, g1z),
-      state: 'wandering',
-      speed: 1.3, // Slower than player walk (2.2) and sprint (3.8)
-      bobTimer: 0,
-      wanderTimer: 2.5,
-      chunkKey: '1_1',
-      originX: g1x,
-      originZ: g1z,
-      soundCooldown: 2.0,
-      attackCooldown: 4.0,
-      isDead: false,
-      respawnTimer: 0,
-    };
-    this.dynamicGhosts.push(ghost1);
+    for (const cfg of ghostConfigs) {
+      const mesh = AbandonedMansionAssets.createGhostFigure(cfg.variant);
+      const gxPos = cfg.gx * this.chunkSize;
+      const gzPos = cfg.gz * this.chunkSize;
+      mesh.position.set(gxPos, 0, gzPos);
+      this.scene.add(mesh);
 
-    // Ghost 2: Shadow Death Specter (저승 망령 / 그림자 원혼)
-    const g2Mesh = AbandonedMansionAssets.createGhostFigure('shadow_specter');
-    const g2x = -this.chunkSize * 1.5;
-    const g2z = -this.chunkSize * 1.5;
-    g2Mesh.position.set(g2x, 0, g2z);
-    this.scene.add(g2Mesh);
-
-    const ghost2: ActiveGhost = {
-      id: 'ghost_shadow_specter',
-      mesh: g2Mesh,
-      pos: new THREE.Vector3(g2x, 0, g2z),
-      targetPos: new THREE.Vector3(g2x, 0, g2z),
-      state: 'wandering',
-      speed: 1.15, // Slower ominous stalker
-      bobTimer: Math.PI,
-      wanderTimer: 3.5,
-      chunkKey: '-1_-1',
-      originX: g2x,
-      originZ: g2z,
-      soundCooldown: 4.0,
-      attackCooldown: 5.0,
-      isDead: false,
-      respawnTimer: 0,
-    };
-    this.dynamicGhosts.push(ghost2);
+      const ghost: ActiveGhost = {
+        id: cfg.id,
+        name: cfg.name,
+        variant: cfg.variant,
+        mesh,
+        pos: new THREE.Vector3(gxPos, 0, gzPos),
+        targetPos: new THREE.Vector3(gxPos, 0, gzPos),
+        state: 'wandering',
+        speed: cfg.speed,
+        bobTimer: cfg.bobOffset,
+        wanderTimer: 2.5 + Math.random() * 2.0,
+        chunkKey: `${cfg.gx}_${cfg.gz}`,
+        originX: gxPos,
+        originZ: gzPos,
+        soundCooldown: 2.0 + Math.random() * 5.0,
+        attackCooldown: 4.0 + Math.random() * 3.0,
+        isDead: false,
+        respawnTimer: 0,
+      };
+      this.dynamicGhosts.push(ghost);
+    }
   }
 
   // Generate floating dust motes catching light beams
@@ -548,8 +574,14 @@ export class InfiniteMazeEngine {
     const roomDistance = Math.abs(gx) + Math.abs(gz);
 
     // Sacred Item Rooms (봉인부적 & 사인참사검)
-    const isSacredTalismanRoom = (gx === 1 && gz === 1) || (gx === -2 && gz === 2) || (gx === 2 && gz === -2) || (roomDistance >= 4 && ((Math.abs(gx * 31 + gz * 17)) % 11 === 4));
-    const isSacredSwordRoom = !isSacredTalismanRoom && ((gx === -1 && gz === 1) || (gx === 2 && gz === 1) || (gx === -2 && gz === -2) || (roomDistance >= 4 && ((Math.abs(gx * 37 + gz * 23)) % 11 === 7)));
+    // 1. 사인참사검(四寅斬邪劍) 위치 유지: 원거리 및 특정 좌표에 고정 유지
+    const isSacredSwordRoom = ((gx === -1 && gz === 1) || (gx === 2 && gz === 1) || (gx === -2 && gz === -2) || (roomDistance >= 4 && ((Math.abs(gx * 37 + gz * 23)) % 11 === 7)));
+
+    // 2. 구천응원 봉인부적(封印符籍): 저택의 아주 깊숙한 밀실(거리 8~10 이상의 은밀한 방)에만 배치
+    const isSacredTalismanRoom = !isSacredSwordRoom && (
+      (gx === 5 && gz === 4) || (gx === -6 && gz === 5) || (gx === 4 && gz === -6) || (gx === -5 && gz === -5) ||
+      (roomDistance >= 9 && ((Math.abs(gx * 31 + gz * 17)) % 13 === 4))
+    );
 
     // Guaranteed Sanity Altar every 3 rooms distance
     const isAltarRoom = !isSacredTalismanRoom && !isSacredSwordRoom && (roomDistance % 3 === 0);
@@ -916,34 +948,12 @@ export class InfiniteMazeEngine {
     };
   }
 
-  // Memory & GPU Safe Chunk Disposal (Preserves shared static geometry pools)
+  // Zero-Stutter Chunk Disposal (Preserves shared static geometry pools and keeps objects cached)
   private disposeChunk(chunk: ChunkInfo) {
     this.scene.remove(chunk.group);
-    chunk.group.traverse((obj) => {
-      if ((obj as THREE.Mesh).isMesh) {
-        const mesh = obj as THREE.Mesh;
-        if (
-          mesh.geometry &&
-          mesh.geometry !== AbandonedMansionAssets.floorGeo &&
-          mesh.geometry !== AbandonedMansionAssets.ceilingGeo &&
-          mesh.geometry !== AbandonedMansionAssets.pillarGeo &&
-          mesh.geometry !== AbandonedMansionAssets.talismanGeo &&
-          mesh.geometry !== AbandonedMansionAssets.maskGeo
-        ) {
-          mesh.geometry.dispose();
-        }
-      }
-    });
-
-    // Clean up active doors belonging to this chunk
-    for (const [key, door] of this.activeDoors) {
-      if (door.chunkGx === chunk.gx && door.chunkGz === chunk.gz) {
-        this.activeDoors.delete(key);
-      }
-    }
   }
 
-  // Update active chunks around player
+  // Update active chunks around player with high-performance memory pooling
   public updateChunks() {
     const currentGx = Math.round(this.playerPos.x / this.chunkSize);
     const currentGz = Math.round(this.playerPos.z / this.chunkSize);
@@ -963,19 +973,35 @@ export class InfiniteMazeEngine {
         neededKeys.add(key);
 
         if (!this.activeChunks.has(key)) {
-          const chunk = this.createChunk(gx, gz);
+          let chunk = this.chunkCache.get(key);
+          if (chunk) {
+            this.scene.add(chunk.group);
+          } else {
+            chunk = this.createChunk(gx, gz);
+            this.chunkCache.set(key, chunk);
+          }
           this.activeChunks.set(key, chunk);
         }
       }
     }
 
-    // Remove distant chunks and dispose GPU resources
+    // Remove distant chunks from the scene
     this.activeChunks.forEach((chunk, key) => {
       if (!neededKeys.has(key)) {
         this.disposeChunk(chunk);
         this.activeChunks.delete(key);
       }
     });
+
+    // High-performance chunk caching: Retain up to 128 explored rooms in memory for instant 0ms retrieval
+    if (this.chunkCache.size > 128) {
+      for (const [key] of this.chunkCache) {
+        if (!this.activeChunks.has(key)) {
+          this.chunkCache.delete(key);
+          if (this.chunkCache.size <= 100) break;
+        }
+      }
+    }
 
     // Record explored room
     const currentRoomKey = `${currentGx},${currentGz}`;
@@ -1064,8 +1090,9 @@ export class InfiniteMazeEngine {
       }
     }
 
-    // Closed doors collision check (blocks passage when door is closed)
+    // Closed doors collision check (blocks passage when door is closed, optimized for local 3x3 doors)
     for (const [, door] of this.activeDoors) {
+      if (Math.abs(door.chunkGx - currentGx) > 1 || Math.abs(door.chunkGz - currentGz) > 1) continue;
       if (door.slideProgress < 0.65) {
         const w = door.wallBox;
         // Check X axis movement collision
@@ -1096,6 +1123,16 @@ export class InfiniteMazeEngine {
 
     this.playerPos.x = nextX;
     this.playerPos.z = nextZ;
+
+    // Boss Arena Boundary Clamping (Keep player within the 12.8m ritual arena)
+    if (this.isBossFightActive) {
+      const pDist = Math.hypot(this.playerPos.x, this.playerPos.z);
+      if (pDist > 12.8) {
+        const pAngle = Math.atan2(this.playerPos.z, this.playerPos.x);
+        this.playerPos.x = Math.cos(pAngle) * 12.8;
+        this.playerPos.z = Math.sin(pAngle) * 12.8;
+      }
+    }
 
     // Update Depth from origin
     this.depthMeters = Math.round(Math.hypot(this.playerPos.x, this.playerPos.z));
@@ -1341,6 +1378,13 @@ export class InfiniteMazeEngine {
       if (!this.collectedRelics.some((r) => r.id === relic.id)) {
         this.collectedRelics.push(relic);
         mazeAudio.playShamanBell();
+
+        // Check 20 relics collection -> Trigger Eoduksini Boss Battle!
+        if (this.collectedRelics.length >= 20 && !this.isBossFightActive && !this.isEscaped) {
+          if (this.onStatsUpdate) this.onStatsUpdate();
+          this.transitionToBossFight();
+          return;
+        }
       }
       if (this.onInspectCallback) {
         this.onInspectCallback(relic, relic.name, relic.description);
@@ -1355,158 +1399,372 @@ export class InfiniteMazeEngine {
     if (this.onStatsUpdate) this.onStatsUpdate();
   }
 
-  // Inventory Slot Selection & Navigation
-  public setActiveSlot(index: number) {
-    if (index < 0 || index >= this.inventory.length) return;
-    this.activeSlotIndex = index;
-    mazeAudio.playInspectSound();
-    if (this.onStatsUpdate) this.onStatsUpdate();
-  }
+  // Transition into the Boss Arena Realm upon gathering 20 relics
+  public transitionToBossFight() {
+    if (this.isBossFightActive || this.isEscaped) return;
+    this.isBossFightActive = true;
 
-  public selectNextSlot() {
-    this.setActiveSlot((this.activeSlotIndex + 1) % this.inventory.length);
-  }
+    // Unlock weapons & select Sa-in Sword
+    this.inventory[0].unlocked = true;
+    this.inventory[1].unlocked = true;
+    this.inventory[2].unlocked = true;
+    this.hasTalisman = true;
+    this.hasSword = true;
+    this.activeSlotIndex = 2; // Auto-equip Sa-in sword
 
-  public selectPrevSlot() {
-    this.setActiveSlot((this.activeSlotIndex - 1 + this.inventory.length) % this.inventory.length);
-  }
+    // Clear active mansion chunks from the scene
+    this.activeChunks.forEach((chunk) => {
+      this.scene.remove(chunk.group);
+    });
+    this.activeChunks.clear();
 
-  // Active Item Action (Flashlight Toggle / Talisman Blast / Sword Slash)
-  public useActiveItem() {
-    const currentItem = this.inventory[this.activeSlotIndex];
-    if (!currentItem.unlocked) {
-      if (this.onHauntedEvent) {
-        this.onHauntedEvent({
-          id: `locked_item_${Date.now()}`,
-          type: 'ghost_whisper',
-          message: `아직 ${currentItem.name}을(를) 찾지 못했습니다. 미로를 탐색하여 안치실을 발견하세요.`,
-          sanityDrain: 0,
-        });
-      }
-      return;
-    }
-
-    if (currentItem.id === 'flashlight') {
-      this.toggleLight();
-    } else if (currentItem.id === 'sealing_talisman') {
-      this.useTalisman();
-    } else if (currentItem.id === 'exorcism_sword') {
-      this.useSword();
-    }
-  }
-
-  // Use Sealing Talisman (Area Banishment)
-  public useTalisman() {
-    if (!this.inventory[1].unlocked) return;
-    this.vmIsAttacking = true;
-    this.vmAttackTimer = 0.45;
-    mazeAudio.playTalismanExorcism();
-
-    // Check ghosts in front of camera within 6.5m
-    const camDir = new THREE.Vector3();
-    this.camera.getWorldDirection(camDir);
-    camDir.y = 0;
-    camDir.normalize();
-
-    let hitGhost: ActiveGhost | null = null;
+    // Disable roaming ghosts
     for (const ghost of this.dynamicGhosts) {
-      if (ghost.isDead) continue;
-      const toGhost = new THREE.Vector3().subVectors(ghost.pos, this.playerPos);
-      toGhost.y = 0;
-      const dist = toGhost.length();
-      if (dist < 6.5) {
-        toGhost.normalize();
-        const dot = camDir.dot(toGhost);
-        if (dot > 0.4) {
-          hitGhost = ghost;
-          break;
-        }
-      }
+      ghost.isDead = true;
+      ghost.mesh.visible = false;
     }
 
-    if (hitGhost) {
-      this.exorciseGhost(hitGhost, 'talisman');
-    }
-  }
+    // Move player to the boss arena south perimeter
+    this.playerPos.set(0, 1.5, 9.0);
+    this.playerYaw = Math.PI; // Look towards origin/north
+    this.playerPitch = 0;
+    this.camera.position.copy(this.playerPos);
 
-  // Use Exorcism Sword (Melee Slash)
-  public useSword() {
-    if (!this.inventory[2].unlocked) return;
-    this.vmIsAttacking = true;
-    this.vmAttackTimer = 0.35;
-    mazeAudio.playSwordSlash();
+    // Create & add Boss Arena
+    this.bossArenaGroup = AbandonedMansionAssets.createBossArena();
+    this.scene.add(this.bossArenaGroup);
 
-    // Check ghosts in front of camera within 4.8m
-    const camDir = new THREE.Vector3();
-    this.camera.getWorldDirection(camDir);
-    camDir.y = 0;
-    camDir.normalize();
+    // Create & add Eoduksini Boss Model
+    this.bossMesh = AbandonedMansionAssets.createEoduksiniBoss();
+    this.bossPos.set(0, 0, -4.5);
+    this.bossMesh.position.copy(this.bossPos);
+    this.scene.add(this.bossMesh);
 
-    let hitGhost: ActiveGhost | null = null;
-    for (const ghost of this.dynamicGhosts) {
-      if (ghost.isDead) continue;
-      const toGhost = new THREE.Vector3().subVectors(ghost.pos, this.playerPos);
-      toGhost.y = 0;
-      const dist = toGhost.length();
-      if (dist < 4.8) {
-        toGhost.normalize();
-        const dot = camDir.dot(toGhost);
-        if (dot > 0.3) {
-          hitGhost = ghost;
-          break;
-        }
-      }
-    }
+    // Arena Atmosphere & Lighting
+    this.scene.background = new THREE.Color(0x06050a);
+    this.scene.fog = new THREE.FogExp2(0x0d0714, 0.032);
+    this.ambientLight.color.setHex(0x5a2d48);
+    this.ambientLight.intensity = 1.3;
 
-    if (hitGhost) {
-      this.exorciseGhost(hitGhost, 'sword');
-    }
-  }
+    // Boss State Initialization (15 Hits required)
+    this.bossState = {
+      active: true,
+      name: '어둑시니',
+      maxHp: 15,
+      currentHp: 15,
+      phase: 1,
+      isStaggered: false,
+      isEnraged: false,
+      attackWarning: null,
+      introMessage: '20개의 신성한 유물이 공명하며 어둑시니의 흑야 결계가 열렸습니다! 사인참사검(四寅斬邪劍)으로 어둑시니를 베어내십시오! (총 15격 필요)',
+    };
 
-  // Exorcise and Banishes a ghost, which respawns elsewhere after delay
-  public exorciseGhost(ghost: ActiveGhost, weapon: 'talisman' | 'sword') {
-    ghost.isDead = true;
-    ghost.respawnTimer = 4.8; // Respawn in ~5s
-    ghost.state = 'wandering';
-    ghost.mesh.visible = false;
-    mazeAudio.playGhostDissipate();
+    // Play Boss Intro and Shaman drum BGM
+    mazeAudio.playBossIntro();
+    mazeAudio.startBossBgm();
 
-    this.exorcisedGhostCount++;
-    this.sanity = Math.min(100, this.sanity + 20);
-
-    const weaponName = weapon === 'talisman' ? '구천응원 봉인부적' : '사인참사검';
     if (this.onHauntedEvent) {
       this.onHauntedEvent({
-        id: `exorcism_${Date.now()}`,
-        type: 'exorcism_success',
-        message: `[퇴마 성공] ${weaponName}(으)로 원혼을 정화 봉인했습니다! (누적 퇴마: ${this.exorcisedGhostCount}위)`,
+        id: `boss_spawn_${Date.now()}`,
+        type: 'barrier_broken',
+        message: '20개의 유물이 공명하여 어둑시니의 흑야 결계가 열렸습니다! 사인참사검으로 어둑시니를 토벌하십시오!',
         sanityDrain: 0,
       });
     }
 
-    this.checkEscapeVictory();
     if (this.onStatsUpdate) this.onStatsUpdate();
   }
 
-  // Check Hidden Escape Victory Conditions (Secret: 2 relics OR 100 kills)
-  public checkEscapeVictory() {
-    if (this.isEscaped) return;
+  // Hit Boss with Exorcism Sword (1 HP Damage)
+  public hitBossWithSword() {
+    if (!this.bossState.active || this.bossState.currentHp <= 0) return;
 
-    const bothRelicsAcquired = this.hasTalisman && this.hasSword;
-    const hundredExorcisms = this.exorcisedGhostCount >= 100;
+    this.bossState.currentHp = Math.max(0, this.bossState.currentHp - 1);
+    this.bossStaggerTimer = 0.55;
+    this.bossState.isStaggered = true;
 
-    if (bothRelicsAcquired || hundredExorcisms) {
-      this.isEscaped = true;
-      mazeAudio.playEscapeVictory();
-      if (this.onEscapeVictory) {
-        this.onEscapeVictory({
-          method: bothRelicsAcquired ? 'relics' : 'kills',
-          exorcisedCount: this.exorcisedGhostCount,
-          depthMeters: this.depthMeters,
-          roomsExplored: this.roomsExplored.size,
-          relicsCount: this.collectedRelics.length,
+    // Recoil boss position slightly backwards
+    const recoilDir = new THREE.Vector3().subVectors(this.bossPos, this.playerPos).normalize();
+    this.bossPos.addScaledVector(recoilDir, 1.2);
+    const bDist = Math.hypot(this.bossPos.x, this.bossPos.z);
+    if (bDist > 11.5) {
+      this.bossPos.normalize().multiplyScalar(11.5);
+    }
+    if (this.bossMesh) {
+      this.bossMesh.position.copy(this.bossPos);
+    }
+
+    // Play hit sound with remaining HP voice/sound pitch
+    mazeAudio.playBossHit(this.bossState.currentHp);
+
+    // Sanity recovery on hit
+    this.sanity = Math.min(100, this.sanity + 10);
+
+    // Check Phase 2 (Enrage) transition at 7 HP
+    if (this.bossState.currentHp <= 7 && this.bossState.phase === 1) {
+      this.bossState.phase = 2;
+      this.bossState.isEnraged = true;
+      this.bossAttackTimer = 2.5;
+      mazeAudio.playBossRoar();
+
+      if (this.onHauntedEvent) {
+        this.onHauntedEvent({
+          id: `boss_enraged_${Date.now()}`,
+          type: 'shadow_figure',
+          message: '[2단계 각성] 어둑시니가 흉폭하게 폭주합니다! 순간이동과 흑야 참격에 주의하십시오!',
+          sanityDrain: 5,
         });
       }
+    }
+
+    // Check Defeat
+    if (this.bossState.currentHp <= 0) {
+      this.handleBossDefeat();
+    } else {
+      if (this.onHauntedEvent) {
+        this.onHauntedEvent({
+          id: `boss_hit_${Date.now()}`,
+          type: 'exorcism_success',
+          message: `[사인참사검 명중!] 어둑시니에게 신성한 타격을 입혔습니다! (남은 체력: ${this.bossState.currentHp} / 15)`,
+          sanityDrain: 0,
+        });
+      }
+    }
+
+    if (this.onStatsUpdate) this.onStatsUpdate();
+  }
+
+  // Hit Boss with Sealing Talisman (Stun + 1 HP Damage)
+  public hitBossWithTalisman() {
+    if (!this.bossState.active || this.bossState.currentHp <= 0) return;
+
+    this.bossState.currentHp = Math.max(0, this.bossState.currentHp - 1);
+    this.bossStaggerTimer = 1.8; // Extended stun from sacred talisman
+    this.bossState.isStaggered = true;
+
+    mazeAudio.playBossHit(this.bossState.currentHp);
+    this.sanity = Math.min(100, this.sanity + 15);
+
+    if (this.bossState.currentHp <= 7 && this.bossState.phase === 1) {
+      this.bossState.phase = 2;
+      this.bossState.isEnraged = true;
+      mazeAudio.playBossRoar();
+    }
+
+    if (this.bossState.currentHp <= 0) {
+      this.handleBossDefeat();
+    } else {
+      if (this.onHauntedEvent) {
+        this.onHauntedEvent({
+          id: `boss_talisman_${Date.now()}`,
+          type: 'exorcism_success',
+          message: `[봉인부적 결계 작렬] 어둑시니를 일시 기절시켰습니다! (남은 체력: ${this.bossState.currentHp} / 15)`,
+          sanityDrain: 0,
+        });
+      }
+    }
+
+    if (this.onStatsUpdate) this.onStatsUpdate();
+  }
+
+  // Boss Defeat & Victory Handler
+  public handleBossDefeat() {
+    if (this.isEscaped) return;
+    this.isEscaped = true;
+    this.escapeMethod = 'boss';
+    this.bossState.active = false;
+    this.bossState.currentHp = 0;
+    this.bossState.isStaggered = false;
+    this.bossState.attackWarning = null;
+
+    mazeAudio.stopBossBgm();
+    mazeAudio.playBossDefeat();
+
+    if (this.bossMesh) {
+      this.bossMesh.visible = false;
+    }
+
+    if (this.onHauntedEvent) {
+      this.onHauntedEvent({
+        id: `boss_defeat_${Date.now()}`,
+        type: 'exorcism_success',
+        message: '[토벌 대성공] 어둠의 군주 어둑시니를 완전히 소멸시키고 미로의 저주를 파괴했습니다!',
+        sanityDrain: 0,
+      });
+    }
+
+    if (this.onEscapeVictory) {
+      this.onEscapeVictory({
+        method: 'boss',
+        exorcisedCount: this.exorcisedGhostCount,
+        depthMeters: this.depthMeters,
+        roomsExplored: this.roomsExplored.size,
+        relicsCount: this.collectedRelics.length,
+        bossDefeated: true,
+      });
+    }
+
+    if (this.onStatsUpdate) this.onStatsUpdate();
+  }
+
+  // Boss AI Update & Animation Loop
+  public updateBoss(delta: number) {
+    if (!this.isBossFightActive || !this.bossMesh || this.bossState.currentHp <= 0) return;
+
+    this.bossTimer += delta;
+    const time = this.bossTimer;
+
+    // Vector from boss to player
+    const toPlayer = new THREE.Vector3().subVectors(this.playerPos, this.bossPos);
+    toPlayer.y = 0;
+    const distToPlayer = toPlayer.length();
+
+    // Look at player smoothly
+    if (distToPlayer > 0.1) {
+      const targetAngle = Math.atan2(toPlayer.x, toPlayer.z);
+      this.bossMesh.rotation.y = targetAngle;
+    }
+
+    // Get sub-components of boss
+    const headGroup = this.bossMesh.getObjectByName('boss_head_group') as THREE.Group | undefined;
+    const armL = this.bossMesh.getObjectByName('boss_arm_left') as THREE.Group | undefined;
+    const armR = this.bossMesh.getObjectByName('boss_arm_right') as THREE.Group | undefined;
+    const coreMesh = this.bossMesh.getObjectByName('boss_core_mesh') as THREE.Mesh | undefined;
+    const eyeLight = this.bossMesh.getObjectByName('boss_eye_light') as THREE.PointLight | undefined;
+
+    // Core pulsing animation
+    if (coreMesh) {
+      const pulse = 1.0 + Math.sin(time * 6.0) * 0.25;
+      coreMesh.scale.set(pulse, pulse, pulse);
+    }
+
+    // Eye light intensity & enrage flare
+    if (eyeLight) {
+      eyeLight.intensity = (this.bossState.isEnraged ? 4.5 : 2.5) + Math.sin(time * 8.0) * 0.8;
+    }
+
+    // Looming Scale ("더 크게 자라나는 어둑시니")
+    const scaleBase = this.bossState.isEnraged ? 1.25 : 1.05;
+    const breathe = Math.sin(time * 2.2) * 0.08;
+    const finalScale = scaleBase + breathe;
+    this.bossMesh.scale.set(finalScale, finalScale, finalScale);
+
+    // Stagger handling
+    if (this.bossStaggerTimer > 0) {
+      this.bossStaggerTimer -= delta;
+      this.bossState.isStaggered = true;
+      this.bossMesh.position.y = Math.sin(time * 20) * 0.15;
+
+      if (armL) armL.rotation.x = -0.6 + Math.sin(time * 15) * 0.2;
+      if (armR) armR.rotation.x = -0.6 + Math.sin(time * 15) * 0.2;
+      if (headGroup) headGroup.rotation.x = -0.3;
+
+      if (this.bossStaggerTimer <= 0) {
+        this.bossState.isStaggered = false;
+      }
+      return;
+    }
+
+    this.bossState.isStaggered = false;
+
+    // Hover floating height
+    this.bossMesh.position.y = 0.25 + Math.sin(time * 3.0) * 0.2;
+
+    // Boss Phase 2 Teleportation
+    if (this.bossState.isEnraged) {
+      this.bossTeleportTimer -= delta;
+      if (this.bossTeleportTimer <= 0) {
+        this.bossTeleportTimer = 7.5;
+        // Teleport behind player or flank
+        const pAngle = this.playerYaw;
+        const offsetDist = 5.0;
+        const targetX = this.playerPos.x + Math.sin(pAngle) * offsetDist;
+        const targetZ = this.playerPos.z + Math.cos(pAngle) * offsetDist;
+
+        // Keep inside arena 11m
+        const clampedDist = Math.hypot(targetX, targetZ);
+        if (clampedDist < 11.5) {
+          this.bossPos.set(targetX, 0, targetZ);
+        } else {
+          this.bossPos.set(-targetX * 0.5, 0, -targetZ * 0.5);
+        }
+        this.bossMesh.position.copy(this.bossPos);
+
+        mazeAudio.playBossRoar();
+        mazeAudio.playGhostPresence();
+
+        if (this.onHauntedEvent) {
+          this.onHauntedEvent({
+            id: `boss_teleport_${Date.now()}`,
+            type: 'ghost_whisper',
+            message: '[흑무 이동] 어둑시니가 그림자 속으로 숨어들어 뒤편에 출현했습니다!',
+            sanityDrain: 3,
+          });
+        }
+      }
+    }
+
+    // Movement toward player (Maintain 3.2m distance)
+    const moveSpeed = this.bossState.isEnraged ? 2.8 : 1.9;
+    if (distToPlayer > 3.4) {
+      this.bossPos.x += (toPlayer.x / distToPlayer) * moveSpeed * delta;
+      this.bossPos.z += (toPlayer.z / distToPlayer) * moveSpeed * delta;
+
+      // Keep within arena radius 12m
+      const bDist = Math.hypot(this.bossPos.x, this.bossPos.z);
+      if (bDist > 12.0) {
+        this.bossPos.normalize().multiplyScalar(12.0);
+      }
+      this.bossMesh.position.copy(this.bossPos);
+    }
+
+    // Arm idle sway
+    if (armL) armL.rotation.x = Math.sin(time * 2.5) * 0.35;
+    if (armR) armR.rotation.x = -Math.sin(time * 2.5) * 0.35;
+
+    // Ground Slam Attack Cycle
+    this.bossAttackTimer -= delta;
+
+    // Telegraphing warning (1.2s before slam)
+    if (this.bossAttackTimer <= 1.2 && this.bossAttackTimer > 0) {
+      this.bossState.attackWarning = '어둑시니가 거대한 그림자 강타를 내리치려 합니다! 즉시 물러나세요!';
+      // Raise arms high
+      if (armL) armL.rotation.x = -1.4 + Math.sin(time * 10) * 0.1;
+      if (armR) armR.rotation.x = -1.4 + Math.sin(time * 10) * 0.1;
+      if (headGroup) headGroup.rotation.x = 0.3;
+    } else if (this.bossAttackTimer <= 0) {
+      // Execute Ground Slam
+      this.bossAttackTimer = this.bossState.isEnraged ? 3.8 : 5.2;
+      this.bossState.attackWarning = null;
+
+      // Arm slam down
+      if (armL) armL.rotation.x = 0.8;
+      if (armR) armR.rotation.x = 0.8;
+
+      mazeAudio.playBossSlam();
+
+      // Check distance to player for damage
+      if (distToPlayer < 5.6) {
+        // Player caught in slam shockwave
+        this.sanity = Math.max(0, this.sanity - (this.bossState.isEnraged ? 22 : 15));
+        mazeAudio.playHeartbeat(150);
+
+        // Push player away
+        const pushDir = new THREE.Vector3().subVectors(this.playerPos, this.bossPos).normalize();
+        this.playerPos.addScaledVector(pushDir, 2.5);
+        this.camera.position.copy(this.playerPos);
+
+        if (this.onHauntedEvent) {
+          this.onHauntedEvent({
+            id: `boss_slam_hit_${Date.now()}`,
+            type: 'screamer',
+            message: '[그림자 강타 피격] 어둑시니의 암흑 충격파에 휩쓸렸습니다! (정신력 대폭 감소)',
+            sanityDrain: 0,
+          });
+        }
+      }
+    } else {
+      this.bossState.attackWarning = null;
     }
   }
 
@@ -1536,8 +1794,9 @@ export class InfiniteMazeEngine {
       }
     }
 
-    // 2. Gather closed doors (blocks ghost passage through closed Hanji doors)
+    // 2. Gather closed doors (blocks ghost passage through closed Hanji doors, local chunk check)
     for (const [, door] of this.activeDoors) {
+      if (Math.abs(door.chunkGx - ghostGx) > 1 || Math.abs(door.chunkGz - ghostGz) > 1) continue;
       if (door.slideProgress < 0.65) {
         boxes.push(door.wallBox);
       }
@@ -1667,12 +1926,10 @@ export class InfiniteMazeEngine {
 
       // If player travelled far away (>26m), reposition ghost into a nearby active room floor safely
       if (dist > 26.0) {
-        const pGx = Math.round(this.playerPos.x / this.chunkSize);
-        const pGz = Math.round(this.playerPos.z / this.chunkSize);
-        const spawnGx = pGx + (i === 0 ? 1 : -1);
-        const spawnGz = pGz + (i === 0 ? 1 : -1);
-        const targetX = spawnGx * this.chunkSize + (Math.random() - 0.5) * 2.0;
-        const targetZ = spawnGz * this.chunkSize + (Math.random() - 0.5) * 2.0;
+        const angle = (i / this.dynamicGhosts.length) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
+        const spawnDist = this.chunkSize * (1.6 + (i % 3) * 0.5);
+        const targetX = this.playerPos.x + Math.cos(angle) * spawnDist;
+        const targetZ = this.playerPos.z + Math.sin(angle) * spawnDist;
         const safePos = this.resolveGhostPosition(targetX, targetZ, targetX, targetZ);
 
         ghost.pos.set(safePos.x, 0, safePos.z);
@@ -1686,7 +1943,7 @@ export class InfiniteMazeEngine {
 
       // Proximity & Behavioral States: Detection radius 7.0 meters
       if (dist < 7.0) {
-        const baseSpeed = ghost.speed || (i === 0 ? 1.30 : 1.15);
+        const baseSpeed = ghost.speed || 1.20;
         ghost.state = dist < 3.5 ? 'charging' : 'stalking';
         ghost.targetPos.copy(this.playerPos);
 
@@ -1750,10 +2007,10 @@ export class InfiniteMazeEngine {
           ghost.pos.set(recoilX, 0, recoilZ);
           ghost.targetPos.copy(ghost.pos);
 
-          const ghostName = i === 0 ? '소복 처녀귀신' : '저승 그림자 망령';
+          const ghostName = ghost.name || '원혼';
           if (this.onHauntedEvent) {
             this.onHauntedEvent({
-              id: `ghost_attack_${Date.now()}`,
+              id: `ghost_attack_${Date.now()}_${ghost.id}`,
               type: 'shadow_figure',
               message: `${ghostName}이(가) 덮쳤습니다! 등불이 꺼지고 정신력이 급감합니다! (SAN -20%)`,
               sanityDrain: 20,
@@ -1761,7 +2018,7 @@ export class InfiniteMazeEngine {
           }
         }
       } else {
-        // Wandering around origin room/chunk area at slow pacing (0.55~0.60 m/s)
+        // Wandering around origin room/chunk area at slow pacing
         ghost.state = 'wandering';
         ghost.wanderTimer -= delta;
 
@@ -1780,7 +2037,7 @@ export class InfiniteMazeEngine {
           const targetAngle = Math.atan2(dir.x, dir.z);
           ghost.mesh.rotation.y = THREE.MathUtils.lerp(ghost.mesh.rotation.y, targetAngle, delta * 3.0);
 
-          const stepSpeed = i === 0 ? 0.60 : 0.50;
+          const stepSpeed = (ghost.speed || 1.20) * 0.45;
           const targetNextX = ghost.pos.x + dir.x * stepSpeed * delta;
           const targetNextZ = ghost.pos.z + dir.z * stepSpeed * delta;
 
@@ -1809,20 +2066,23 @@ export class InfiniteMazeEngine {
       this.sanity = Math.max(0, this.sanity - delta * 3.0);
     }
 
+    // Compute nearest active ghost distance for audio tension & heartbeat
+    let nearestGhostDist = 999;
+    for (const ghost of this.dynamicGhosts) {
+      if (ghost.isDead) continue;
+      const dist = ghost.pos.distanceTo(this.playerPos);
+      if (dist < nearestGhostDist) {
+        nearestGhostDist = dist;
+      }
+    }
+
+    // Update real-time dynamic heartbeat and horror background sound (active when SAN <= 30% or ghost is near)
+    mazeAudio.updateSanityHeartbeat(this.sanity, nearestGhostDist < 7.0);
+
     // Proximity sanity drain from any nearby ghost
     this.ghostCheckTimer += delta;
     if (this.ghostCheckTimer > 0.8) {
       this.ghostCheckTimer = 0;
-
-      let nearestGhostDist = 999;
-      for (const ghost of this.dynamicGhosts) {
-        if (ghost.isDead) continue;
-        const dist = ghost.pos.distanceTo(this.playerPos);
-        if (dist < nearestGhostDist) {
-          nearestGhostDist = dist;
-        }
-      }
-
       if (nearestGhostDist < 6.5) {
         this.sanity = Math.max(0, this.sanity - 4);
       }
@@ -2098,8 +2358,12 @@ export class InfiniteMazeEngine {
     });
 
     this.updatePlayerMovement(delta);
-    this.updateChunks();
-    this.updateGhosts(delta);
+    if (this.isBossFightActive) {
+      this.updateBoss(delta);
+    } else {
+      this.updateChunks();
+      this.updateGhosts(delta);
+    }
 
     // Update First-Person Viewmodels & Animations
     const isSlot0 = this.activeSlotIndex === 0;
@@ -2177,6 +2441,14 @@ export class InfiniteMazeEngine {
     this.container.removeEventListener('touchmove', this.handleTouchMove);
     this.container.removeEventListener('touchend', this.handleTouchEnd);
     this.container.removeEventListener('touchcancel', this.handleTouchEnd);
+
+    mazeAudio.stopBossBgm();
+    if (this.bossMesh) {
+      this.scene.remove(this.bossMesh);
+    }
+    if (this.bossArenaGroup) {
+      this.scene.remove(this.bossArenaGroup);
+    }
 
     this.dynamicGhosts.forEach((ghost) => {
       this.scene.remove(ghost.mesh);

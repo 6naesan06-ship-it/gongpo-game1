@@ -563,4 +563,119 @@ export class AbandonedMansionTextures {
     this.cache.set('folding_screen', texture);
     return texture;
   }
+
+  // 11. Cursed Dark Altar Stone Floor (어둑시니 흑야 결계 석판 바닥)
+  public static getBossArenaFloorTexture(): THREE.CanvasTexture {
+    if (this.cache.has('boss_arena_floor')) return this.cache.get('boss_arena_floor')!;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d')!;
+
+    // Dark obsidian stone base
+    ctx.fillStyle = '#0d0d12';
+    ctx.fillRect(0, 0, 512, 512);
+
+    // Flagstone grid with blood-tinted veins
+    const tileSize = 64;
+    for (let x = 0; x < 512; x += tileSize) {
+      for (let y = 0; y < 512; y += tileSize) {
+        const shade = Math.floor(Math.random() * 15);
+        ctx.fillStyle = `rgb(${16 + shade}, ${14 + shade}, ${22 + shade})`;
+        ctx.fillRect(x + 2, y + 2, tileSize - 4, tileSize - 4);
+
+        // Cracks & mysterious talisman markings
+        if (Math.random() > 0.4) {
+          ctx.strokeStyle = Math.random() > 0.5 ? 'rgba(180, 30, 40, 0.45)' : 'rgba(40, 140, 220, 0.35)';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(x + Math.random() * tileSize, y + Math.random() * tileSize);
+          ctx.lineTo(x + Math.random() * tileSize, y + Math.random() * tileSize);
+          ctx.stroke();
+        }
+      }
+    }
+
+    // Great Center Shaman Bagua / Trigram Seal Ring
+    ctx.strokeStyle = 'rgba(230, 45, 45, 0.7)';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.arc(256, 256, 210, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(70, 180, 255, 0.6)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(256, 256, 175, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Sacred Yin-Yang / Taegeuk swirl & runes
+    ctx.strokeStyle = 'rgba(255, 60, 60, 0.75)';
+    ctx.lineWidth = 4;
+    for (let a = 0; a < 8; a++) {
+      const angle = (a / 8) * Math.PI * 2;
+      const rx = 256 + Math.cos(angle) * 190;
+      const ry = 256 + Math.sin(angle) * 190;
+      ctx.fillStyle = '#ff2233';
+      ctx.fillRect(rx - 8, ry - 8, 16, 16);
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    this.cache.set('boss_arena_floor', texture);
+    return texture;
+  }
+
+  // 12. Sealing Stone Pillar Talisman Runes
+  public static getBossPillarRuneTexture(): THREE.CanvasTexture {
+    if (this.cache.has('boss_pillar_rune')) return this.cache.get('boss_pillar_rune')!;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d')!;
+
+    // Dark granite stone base
+    ctx.fillStyle = '#181a1f';
+    ctx.fillRect(0, 0, 256, 512);
+
+    // Glowing Vermilion / Gold Exorcism Runes (敕令 九天應元 鎭煞)
+    ctx.strokeStyle = '#ff3322';
+    ctx.fillStyle = '#ff4422';
+    ctx.lineWidth = 4;
+    ctx.shadowColor = '#ff1100';
+    ctx.shadowBlur = 12;
+
+    // Outer talisman boundary
+    ctx.strokeRect(20, 20, 216, 472);
+
+    // Chinese/Sanskrit seal characters
+    ctx.beginPath();
+    // Head crown
+    ctx.moveTo(128, 45);
+    ctx.lineTo(60, 100);
+    ctx.lineTo(196, 100);
+    ctx.closePath();
+    ctx.stroke();
+
+    // Sacred central spine
+    ctx.beginPath();
+    ctx.moveTo(128, 100);
+    ctx.lineTo(128, 440);
+    ctx.stroke();
+
+    // 28 constellation cross ticks
+    for (let y = 140; y < 440; y += 40) {
+      ctx.beginPath();
+      ctx.moveTo(70, y);
+      ctx.lineTo(186, y + (Math.random() - 0.5) * 15);
+      ctx.stroke();
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    this.cache.set('boss_pillar_rune', texture);
+    return texture;
+  }
 }

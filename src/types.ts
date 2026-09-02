@@ -30,12 +30,25 @@ export interface HauntedEvent {
   sanityDrain: number;
 }
 
+export interface BossState {
+  active: boolean;
+  name: string;
+  maxHp: number; // 15
+  currentHp: number; // 0 ~ 15
+  phase: number; // 1 | 2
+  isStaggered: boolean;
+  isEnraged: boolean;
+  attackWarning?: string | null;
+  introMessage?: string;
+}
+
 export interface EscapeVictoryData {
-  method: 'relics' | 'kills';
+  method: 'boss' | 'relics' | 'kills';
   exorcisedCount: number;
   depthMeters: number;
   roomsExplored: number;
   relicsCount: number;
+  bossDefeated?: boolean;
 }
 
 export interface PlayerStats {
@@ -51,6 +64,7 @@ export interface PlayerStats {
   inventory: InventorySlotItem[];
   activeSlotIndex: number;
   exorcisedGhostCount: number;
+  bossState?: BossState | null;
 }
 
 export interface MazeChunkCoordinate {
