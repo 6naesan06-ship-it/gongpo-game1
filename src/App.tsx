@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { InfiniteMazeEngine } from './game/InfiniteMazeEngine';
 import { MazeHUD } from './components/MazeHUD';
+import { JumpscareOverlay } from './components/JumpscareOverlay';
 import { mazeAudio } from './audio/mazeHorrorAudio';
-import { RelicItem, HauntedEvent, InventoryItem } from './types';
+import { RelicItem, HauntedEvent, InventoryItem, JumpscareEvent } from './types';
 import {
   Compass,
   Footprints,
@@ -40,21 +41,21 @@ export default function App() {
     {
       id: 'flashlight',
       name: '회중전등',
-      description: '어두운 미로를 밝혀주는 손전등',
+      description: '어두운 미로를 밝혀주는 기본 탐험 장비 [1번/Z]',
       unlocked: true,
       iconType: 'flashlight'
     },
     {
       id: 'sealing_talisman',
       name: '봉인부적',
-      description: '신성한 기운으로 원혼을 퇴마하는 부적',
+      description: '미로 속 제단에서 획득하는 원혼 퇴마 부적 [2번/X]',
       unlocked: false,
       iconType: 'talisman'
     },
     {
       id: 'exorcism_sword',
       name: '사인참사검',
-      description: '악귀를 일격에 베어 퇴마하는 보검',
+      description: '미로 속 보검대에서 뽑아드는 전설의 보검 [3번/C/G]',
       unlocked: false,
       iconType: 'sword'
     }
@@ -86,6 +87,7 @@ export default function App() {
     text: string;
   } | null>(null);
   const [hauntedAlert, setHauntedAlert] = useState<HauntedEvent | null>(null);
+  const [currentJumpscare, setCurrentJumpscare] = useState<JumpscareEvent | null>(null);
 
   // Initialize and mount 3D Infinite Maze Engine
   useEffect(() => {
@@ -107,6 +109,10 @@ export default function App() {
       setTimeout(() => {
         setHauntedAlert(null);
       }, 3500);
+    };
+
+    engine.onJumpscare = (event) => {
+      setCurrentJumpscare(event);
     };
 
     engine.onStatsUpdate = () => {
@@ -190,11 +196,13 @@ export default function App() {
     setCollectedRelics([]);
     setExorcisedGhostCount(0);
     setEscapeModal(null);
+    setCurrentJumpscare(null);
     setGameStatus('playing');
   };
 
   const handleRestart = () => {
     setEscapeModal(null);
+    setCurrentJumpscare(null);
     setGameStatus('intro');
   };
 
@@ -238,7 +246,7 @@ export default function App() {
   const handleSelectSlot = (idx: number) => {
     if (engineRef.current) {
       engineRef.current.setActiveSlot(idx);
-      setActiveSlotIndex(idx);
+      setActiveSlotIndex(engineRef.current.activeSlotIndex);
     }
   };
 
@@ -259,6 +267,13 @@ export default function App() {
   const handleUseActiveItem = () => {
     if (engineRef.current) {
       engineRef.current.useActiveItem();
+    }
+  };
+
+  const handleCloseInvestigation = () => {
+    setInvestigationModal(null);
+    if (containerRef.current) {
+      containerRef.current.requestPointerLock();
     }
   };
 
@@ -294,7 +309,7 @@ export default function App() {
           soundEnabled={soundEnabled}
           onToggleSound={handleToggleSound}
           investigationModal={investigationModal}
-          onCloseInvestigation={() => setInvestigationModal(null)}
+          onCloseInvestigation={handleCloseInvestigation}
           hauntedAlert={hauntedAlert}
           onVirtualMove={handleVirtualMove}
           onVirtualLook={handleVirtualLook}
@@ -344,13 +359,18 @@ export default function App() {
             </div>
 
             {/* Controls Guide Table */}
-            <div className="w-full grid grid-cols-3 gap-2 text-[11px] font-mono text-neutral-400 mb-4 bg-neutral-950 p-3 rounded-xl border border-neutral-800/80">
-              <div><strong className="text-neutral-200">WASD</strong> 이동</div>
-              <div><strong className="text-neutral-200">마우스</strong> 시점 회전</div>
-              <div><strong className="text-neutral-200">Shift</strong> 전력 질주</div>
-              <div><strong className="text-neutral-200">← / → / 1-3</strong> 인벤토리 교체</div>
-              <div><strong className="text-neutral-200">F / 좌클릭</strong> 아이템 사용(퇴마)</div>
-              <div><strong className="text-amber-400">E 키</strong> 문 열기 / 조사</div>
+            {/* Controls Guide Table (컴퓨터 & 노트북 완벽 지원) */}
+            <div className="w-full grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px] font-mono text-neutral-300 mb-4 bg-neutral-950 p-3.5 rounded-xl border border-neutral-800/80 text-left">
+              <div><strong className="text-white">WASD</strong> 이동</div>
+              <div><strong className="text-white">마우스 이동</strong> 시점 회전</div>
+              <div><strong className="text-white">Shift</strong> 전력 질주</div>
+              <div><strong className="text-amber-300 font-bold">[1번/Z]</strong> 회중전등 (기본)</div>
+              <div><strong className="text-cyan-300 font-bold">[좌클릭/F]</strong> 전등·무기 사용</div>
+              <div><strong className="text-amber-400 font-bold">[E / 우클릭]</strong> 문·제사상·유물</div>
+              <div className="col-span-2 sm:col-span-3 text-neutral-400 text-[10px] border-t border-neutral-800/60 pt-1.5 mt-0.5">
+                • <strong>신물 탐색:</strong> 봉인부적[2번/X]과 사인참사검[3번/C]은 미로 속 제단과 보검대에서 찾아내야 합니다.<br />
+                • <strong>정밀 조준 상호작용:</strong> 제사상이나 유물은 화면 정중앙으로 조준한 상태에서 [E] 키 또는 클릭해야 작동합니다.
+              </div>
             </div>
 
             {/* Quick Brightness & Sensitivity Tuner */}
@@ -439,6 +459,12 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Terrifying Jumpscare Overlay on Ghost Attacks */}
+      <JumpscareOverlay
+        event={currentJumpscare}
+        onComplete={() => setCurrentJumpscare(null)}
+      />
     </div>
   );
 }

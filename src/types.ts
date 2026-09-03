@@ -23,6 +23,14 @@ export interface RelicItem {
   collectedAtDepth: number;
 }
 
+export interface JumpscareEvent {
+  id: string;
+  variant: 'white_maiden' | 'shadow_specter' | 'boss_demon';
+  ghostName: string;
+  timestamp: number;
+  damage: number;
+}
+
 export interface HauntedEvent {
   id: string;
   type: 'ghost_whisper' | 'flicker' | 'door_creak' | 'talisman_burn' | 'shadow_figure' | 'mask_weep' | 'exorcism_success' | 'item_acquired' | 'barrier_broken';
@@ -37,7 +45,10 @@ export interface BossState {
   currentHp: number; // 0 ~ 15
   phase: number; // 1 | 2
   isStaggered: boolean;
+  isInvulnerable: boolean; // 공격 중 무적 상태
+  staggerHitsLeft: number; // 기절 시 타격 가능한 남은 횟수 (기본 2회)
   isEnraged: boolean;
+  currentPatternName?: string;
   attackWarning?: string | null;
   introMessage?: string;
 }

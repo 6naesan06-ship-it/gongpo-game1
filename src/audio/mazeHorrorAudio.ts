@@ -465,6 +465,90 @@ class MazeHorrorAudio {
     sub.stop(t + 0.8);
   }
 
+  // Violent Ghost Jumpscare Scream & Impact (공포 귀신 피격 갑툭튀 비명 및 충격음)
+  public playGhostJumpscareScream(variant: 'white_maiden' | 'shadow_specter' | 'boss_demon' = 'white_maiden') {
+    if (this.isMuted) return;
+    this.ensureCtx();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+
+    // 1. Terrifying High Shriek (피를 말리는 찢어지는 귀신 비명음)
+    const screamFreqs = variant === 'white_maiden' 
+      ? [880, 932, 1174, 1480, 1850] 
+      : variant === 'boss_demon' 
+        ? [180, 240, 360, 520, 840] 
+        : [540, 680, 820, 1100, 1340];
+
+    screamFreqs.forEach((freq, idx) => {
+      if (!this.ctx) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      const filter = this.ctx.createBiquadFilter();
+
+      osc.type = idx % 2 === 0 ? 'sawtooth' : 'triangle';
+      osc.frequency.setValueAtTime(freq, t);
+      // Sudden shrieking pitch wobble & terrifying drop
+      osc.frequency.linearRampToValueAtTime(freq * 1.25, t + 0.08);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.45, t + 0.95);
+
+      filter.type = 'highpass';
+      filter.frequency.setValueAtTime(300, t);
+
+      gain.gain.setValueAtTime(0.001, t);
+      gain.gain.linearRampToValueAtTime(0.42 / screamFreqs.length, t + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 1.1);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start(t);
+      osc.stop(t + 1.2);
+    });
+
+    // 2. Bone-Crushing Sub Impact Slam (심장을 후벼파는 충격음)
+    const sub = this.ctx.createOscillator();
+    const subGain = this.ctx.createGain();
+    sub.type = 'sawtooth';
+    sub.frequency.setValueAtTime(140, t);
+    sub.frequency.exponentialRampToValueAtTime(22, t + 0.6);
+
+    const subFilter = this.ctx.createBiquadFilter();
+    subFilter.type = 'lowpass';
+    subFilter.frequency.setValueAtTime(180, t);
+
+    subGain.gain.setValueAtTime(0.85, t);
+    subGain.gain.exponentialRampToValueAtTime(0.001, t + 0.85);
+
+    sub.connect(subFilter);
+    subFilter.connect(subGain);
+    subGain.connect(this.ctx.destination);
+    sub.start(t);
+    sub.stop(t + 0.9);
+
+    // 3. Static Glitch / Noise Blast (스피커를 찢는 듯한 노이즈 크런치)
+    const bufferSize = Math.floor(this.ctx.sampleRate * 0.45);
+    const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const output = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      output[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.12));
+    }
+
+    const whiteNoise = this.ctx.createBufferSource();
+    whiteNoise.buffer = noiseBuffer;
+    const noiseGain = this.ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.4, t);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+
+    whiteNoise.connect(noiseGain);
+    noiseGain.connect(this.ctx.destination);
+    whiteNoise.start(t);
+
+    // 4. Player hyperventilation and extreme pounding heartbeat
+    this.playHeartbeat(175, 0.7);
+  }
+
   // Water drip in abandoned house
   public playWaterDrip() {
     if (this.isMuted) return;
@@ -908,6 +992,160 @@ class MazeHorrorAudio {
     cGain.connect(this.ctx.destination);
     chime.start(t);
     chime.stop(t + 0.85);
+  }
+
+  // Boss Invulnerable Deflection Sound (Clank & dark barrier hiss)
+  public playBossInvulnerableBlock() {
+    if (this.isMuted) return;
+    this.ensureCtx();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+    // Metallic barrier clink
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(2400, t);
+    osc.frequency.exponentialRampToValueAtTime(120, t + 0.15);
+
+    gain.gain.setValueAtTime(0.4, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.2);
+
+    // Dark barrier hiss
+    const bufferSize = this.ctx.sampleRate * 0.2;
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.05));
+    }
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.setValueAtTime(2000, t);
+    const nGain = this.ctx.createGain();
+    nGain.gain.setValueAtTime(0.35, t);
+    nGain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+
+    noise.connect(filter);
+    filter.connect(nGain);
+    nGain.connect(this.ctx.destination);
+    noise.start(t);
+  }
+
+  // Boss Groggy / Stunned Sound (Exposed core chime & heavy breath)
+  public playBossStaggerGroggy() {
+    if (this.isMuted) return;
+    this.ensureCtx();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+    // Divine stun chime (Groggy chance alert!)
+    [440, 554.37, 659.25, 880].forEach((freq, idx) => {
+      if (!this.ctx) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t + idx * 0.04);
+
+      gain.gain.setValueAtTime(0.22 / (idx + 1), t + idx * 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 1.2);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(t + idx * 0.04);
+      osc.stop(t + 1.3);
+    });
+
+    // Sub groan of weakness
+    const groan = this.ctx.createOscillator();
+    const gGain = this.ctx.createGain();
+    groan.type = 'sawtooth';
+    groan.frequency.setValueAtTime(140, t);
+    groan.frequency.exponentialRampToValueAtTime(50, t + 0.6);
+    gGain.gain.setValueAtTime(0.3, t);
+    gGain.gain.exponentialRampToValueAtTime(0.001, t + 0.65);
+    groan.connect(gGain);
+    gGain.connect(this.ctx.destination);
+    groan.start(t);
+    groan.stop(t + 0.7);
+  }
+
+  // Boss Tentacle Rush Attack Sound
+  public playBossTentacleRush() {
+    if (this.isMuted) return;
+    this.ensureCtx();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+    for (let i = 0; i < 3; i++) {
+      const stabTime = t + i * 0.16;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(700, stabTime);
+      osc.frequency.exponentialRampToValueAtTime(180, stabTime + 0.12);
+
+      gain.gain.setValueAtTime(0.3, stabTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, stabTime + 0.14);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(stabTime);
+      osc.stop(stabTime + 0.15);
+    }
+  }
+
+  // Boss Black Lightning Eclipse Strike
+  public playBossLightningStorm() {
+    if (this.isMuted) return;
+    this.ensureCtx();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+    // Thunder crack
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(260, t);
+    osc.frequency.exponentialRampToValueAtTime(30, t + 0.8);
+
+    gain.gain.setValueAtTime(0.65, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.9);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.95);
+  }
+
+  // Boss Gravitational Vortex Pull
+  public playBossVortexPull() {
+    if (this.isMuted) return;
+    this.ensureCtx();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(60, t);
+    osc.frequency.linearRampToValueAtTime(180, t + 1.2);
+    osc.frequency.exponentialRampToValueAtTime(40, t + 1.6);
+
+    gain.gain.setValueAtTime(0.01, t);
+    gain.gain.linearRampToValueAtTime(0.4, t + 0.8);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 1.7);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(t);
+    osc.stop(t + 1.8);
   }
 
   // Boss Defeat & Exorcism Grand Fanfare

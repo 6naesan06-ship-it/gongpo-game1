@@ -68,7 +68,7 @@ export class AbandonedMansionTextures {
     return texture;
   }
 
-  // 2. Moldy peeling wallpaper & damp plaster wall (곰팡이 핀 낡은 벽)
+  // 2. Moldy peeling wallpaper & damp plaster wall (흉가의 낡고 뜯겨나간 벽지와 곰팡이 핀 흙벽)
   public static getMoldyWallTexture(): THREE.CanvasTexture {
     if (this.cache.has('moldy_wall')) return this.cache.get('moldy_wall')!;
 
@@ -77,31 +77,93 @@ export class AbandonedMansionTextures {
     canvas.height = 512;
     const ctx = canvas.getContext('2d')!;
 
-    // Base dingy off-white/beige damp plaster
-    ctx.fillStyle = '#3a352c';
+    // Base dingy aged yellow-gray paper plaster (누렇게 변색되고 눅눅한 바탕)
+    ctx.fillStyle = '#322b22';
     ctx.fillRect(0, 0, 512, 512);
 
-    // Peeling wallpaper pattern (faded traditional floral/geometric motifs)
-    ctx.strokeStyle = 'rgba(70, 60, 48, 0.25)';
-    ctx.lineWidth = 1;
+    // Subtle traditional antique damask/lattice floral wallpaper pattern (색바랜 고택 벽지 문양)
+    ctx.strokeStyle = 'rgba(78, 67, 52, 0.35)';
+    ctx.lineWidth = 1.5;
     for (let x = 0; x < 512; x += 32) {
       for (let y = 0; y < 512; y += 32) {
-        ctx.strokeRect(x + 4, y + 4, 24, 24);
+        // Antique rhombus frame
         ctx.beginPath();
-        ctx.arc(x + 16, y + 16, 6, 0, Math.PI * 2);
+        ctx.moveTo(x + 16, y + 2);
+        ctx.lineTo(x + 30, y + 16);
+        ctx.lineTo(x + 16, y + 30);
+        ctx.lineTo(x + 2, y + 16);
+        ctx.closePath();
+        ctx.stroke();
+
+        // Inner lotus/floral petal cross
+        ctx.beginPath();
+        ctx.arc(x + 16, y + 16, 5, 0, Math.PI * 2);
         ctx.stroke();
       }
     }
 
-    // Heavy black & dark green mold blooms (곰팡이 군집)
-    for (let m = 0; m < 14; m++) {
+    // Large jagged tear patches revealing dark rotting straw-earth mud wall underneath (뜯겨나간 흙벽 노출)
+    const tearPatches = [
+      { cx: 120, cy: 150, rx: 75, ry: 110, rot: 0.2 },
+      { cx: 380, cy: 280, rx: 90, ry: 130, rot: -0.3 },
+      { cx: 220, cy: 410, rx: 60, ry: 70, rot: 0.5 },
+      { cx: 440, cy: 80, rx: 50, ry: 60, rot: -0.1 },
+    ];
+
+    for (const patch of tearPatches) {
+      ctx.save();
+      ctx.translate(patch.cx, patch.cy);
+      ctx.rotate(patch.rot);
+
+      // Deep dark wet earthen plaster base (어둡게 썩어 들어간 진흙벽)
+      ctx.fillStyle = '#140e09';
+      ctx.beginPath();
+      ctx.moveTo(-patch.rx, 0);
+      const points = 16;
+      for (let i = 0; i <= points; i++) {
+        const angle = (i / points) * Math.PI * 2;
+        const radJitter = 0.75 + Math.sin(angle * 5) * 0.2 + (Math.random() - 0.5) * 0.15;
+        const px = Math.cos(angle) * patch.rx * radJitter;
+        const py = Math.sin(angle) * patch.ry * radJitter;
+        ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+
+      // Exposed straw fibers embedded in ancient mud (흙벽 속 지푸라기 심)
+      ctx.strokeStyle = '#3d301e';
+      ctx.lineWidth = 1.2;
+      for (let s = 0; s < 25; s++) {
+        const sx = (Math.random() - 0.5) * patch.rx * 1.4;
+        const sy = (Math.random() - 0.5) * patch.ry * 1.4;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(sx + (Math.random() - 0.5) * 16, sy + (Math.random() - 0.5) * 16);
+        ctx.stroke();
+      }
+
+      // Peeling jagged paper border rim with curling light edge & cast shadow (들떠서 말려있는 벽지 경계면)
+      ctx.strokeStyle = '#c4b69c';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      // Drop shadow around peeled paper edge
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+      ctx.lineWidth = 4;
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    // Heavy black & necrotic dark-green mold blooms (피어난 검은 곰팡이와 이끼 군집)
+    for (let m = 0; m < 18; m++) {
       const mx = Math.random() * 512;
       const my = Math.random() * 512;
-      const mSize = 30 + Math.random() * 80;
-      const mGrad = ctx.createRadialGradient(mx, my, 5, mx, my, mSize);
-      mGrad.addColorStop(0, 'rgba(12, 18, 12, 0.95)');
-      mGrad.addColorStop(0.4, 'rgba(25, 30, 20, 0.7)');
-      mGrad.addColorStop(0.8, 'rgba(45, 38, 25, 0.3)');
+      const mSize = 25 + Math.random() * 85;
+      const mGrad = ctx.createRadialGradient(mx, my, 4, mx, my, mSize);
+      mGrad.addColorStop(0, 'rgba(8, 12, 8, 0.96)');
+      mGrad.addColorStop(0.35, 'rgba(18, 26, 16, 0.8)');
+      mGrad.addColorStop(0.7, 'rgba(38, 32, 22, 0.4)');
       mGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
 
       ctx.fillStyle = mGrad;
@@ -109,47 +171,125 @@ export class AbandonedMansionTextures {
       ctx.arc(mx, my, mSize, 0, Math.PI * 2);
       ctx.fill();
 
-      // Speckled mold spores
-      for (let sp = 0; sp < 40; sp++) {
-        ctx.fillStyle = Math.random() > 0.5 ? 'rgba(5, 10, 5, 0.8)' : 'rgba(20, 15, 10, 0.7)';
-        ctx.fillRect(mx + (Math.random() - 0.5) * mSize * 1.4, my + (Math.random() - 0.5) * mSize * 1.4, 2, 2);
+      // Speckled fungal spores
+      for (let sp = 0; sp < 45; sp++) {
+        ctx.fillStyle = Math.random() > 0.4 ? 'rgba(4, 8, 4, 0.85)' : 'rgba(28, 22, 14, 0.75)';
+        ctx.fillRect(mx + (Math.random() - 0.5) * mSize * 1.5, my + (Math.random() - 0.5) * mSize * 1.5, 1.8, 1.8);
       }
     }
 
-    // Peeling tear marks revealing dark wet plaster underneath
-    for (let p = 0; p < 4; p++) {
-      const px = 50 + Math.random() * 400;
-      const py = 50 + Math.random() * 400;
-      ctx.fillStyle = '#1c1712';
-      ctx.beginPath();
-      ctx.moveTo(px, py);
-      ctx.lineTo(px + 40 + Math.random() * 30, py + 10);
-      ctx.lineTo(px + 30 + Math.random() * 40, py + 70 + Math.random() * 30);
-      ctx.lineTo(px - 10, py + 50);
-      ctx.closePath();
-      ctx.fill();
+    // Chilling desperate claw scratch marks (벽을 할퀴어댄 듯한 손톱 긁힘)
+    for (let sc = 0; sc < 3; sc++) {
+      const startX = 60 + Math.random() * 380;
+      const startY = 80 + Math.random() * 260;
+      for (let finger = 0; finger < 4; finger++) {
+        ctx.strokeStyle = 'rgba(12, 8, 5, 0.85)';
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        const fx = startX + finger * 9;
+        ctx.moveTo(fx, startY);
+        ctx.bezierCurveTo(
+          fx + 5, startY + 50,
+          fx - 4, startY + 110,
+          fx + 2, startY + 160 + Math.random() * 20
+        );
+        ctx.stroke();
 
-      // White paper curl edge
-      ctx.strokeStyle = 'rgba(200, 190, 170, 0.4)';
-      ctx.lineWidth = 2;
-      ctx.stroke();
+        // White paper fray edge along scratches
+        ctx.strokeStyle = 'rgba(180, 170, 150, 0.4)';
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+      }
     }
 
-    // Water drip stains running down
-    for (let d = 0; d < 8; d++) {
+    // Water drip & dirty seepage trails running down vertically (천장에서 흘러내린 오염된 물때)
+    for (let d = 0; d < 12; d++) {
       const dx = Math.random() * 512;
-      const grad = ctx.createLinearGradient(dx, 0, dx, 512);
-      grad.addColorStop(0, 'rgba(20, 16, 12, 0.8)');
-      grad.addColorStop(0.7, 'rgba(30, 24, 18, 0.3)');
-      grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-      ctx.fillStyle = grad;
-      ctx.fillRect(dx, 0, 4 + Math.random() * 8, 300 + Math.random() * 200);
+      const dripHeight = 180 + Math.random() * 320;
+      const dripGrad = ctx.createLinearGradient(dx, 0, dx, dripHeight);
+      dripGrad.addColorStop(0, 'rgba(14, 10, 6, 0.85)');
+      dripGrad.addColorStop(0.5, 'rgba(25, 20, 14, 0.45)');
+      dripGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = dripGrad;
+      ctx.fillRect(dx, 0, 3 + Math.random() * 8, dripHeight);
     }
+
+    // Faint cursed bloody smear trace (희미하게 남은 핏빛 얼룩 흔적)
+    ctx.fillStyle = 'rgba(65, 12, 10, 0.35)';
+    ctx.beginPath();
+    ctx.ellipse(310, 190, 45, 25, 0.4, 0, Math.PI * 2);
+    ctx.fill();
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
     this.cache.set('moldy_wall', texture);
+    return texture;
+  }
+
+  // 2-B. Tangible Bump & Normal relief map for torn wallpaper and cracks (벽면 요철 및 질감 맵)
+  public static getWallBumpTexture(): THREE.CanvasTexture {
+    if (this.cache.has('wall_bump')) return this.cache.get('wall_bump')!;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d')!;
+
+    // Mid-gray base wallpaper plane (128)
+    ctx.fillStyle = '#808080';
+    ctx.fillRect(0, 0, 512, 512);
+
+    // Noise plaster grain
+    for (let i = 0; i < 4000; i++) {
+      const v = 110 + Math.floor(Math.random() * 36);
+      ctx.fillStyle = `rgb(${v},${v},${v})`;
+      ctx.fillRect(Math.random() * 512, Math.random() * 512, 2, 2);
+    }
+
+    // Sunken tears in plaster (deep cavities = 30-50 dark gray)
+    const patches = [
+      { cx: 120, cy: 150, rx: 75, ry: 110, rot: 0.2 },
+      { cx: 380, cy: 280, rx: 90, ry: 130, rot: -0.3 },
+      { cx: 220, cy: 410, rx: 60, ry: 70, rot: 0.5 },
+      { cx: 440, cy: 80, rx: 50, ry: 60, rot: -0.1 },
+    ];
+
+    for (const p of patches) {
+      ctx.save();
+      ctx.translate(p.cx, p.cy);
+      ctx.rotate(p.rot);
+
+      ctx.fillStyle = '#222222';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, p.rx, p.ry, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // High bright ridge along the peeling wallpaper curl (240-255 bright highlight)
+      ctx.strokeStyle = '#f0f0f0';
+      ctx.lineWidth = 5;
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    // Scratch grooves (sunken lines = 20)
+    for (let s = 0; s < 3; s++) {
+      const sx = 70 + s * 120;
+      for (let f = 0; f < 4; f++) {
+        ctx.strokeStyle = '#151515';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(sx + f * 8, 100);
+        ctx.lineTo(sx + f * 8 + 4, 250);
+        ctx.stroke();
+      }
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    this.cache.set('wall_bump', texture);
     return texture;
   }
 
@@ -676,6 +816,288 @@ export class AbandonedMansionTextures {
 
     const texture = new THREE.CanvasTexture(canvas);
     this.cache.set('boss_pillar_rune', texture);
+    return texture;
+  }
+
+  // 13. Intricate Corner Cobweb Alpha Texture (천장 및 벽 구석 모서리 거미줄)
+  public static getCobwebTexture(): THREE.CanvasTexture {
+    if (this.cache.has('cobweb_corner')) return this.cache.get('cobweb_corner')!;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d')!;
+
+    ctx.clearRect(0, 0, 512, 512);
+
+    // Anchor point at top-left (0, 0)
+    const radCount = 14;
+    const radAngles: number[] = [];
+    for (let i = 0; i <= radCount; i++) {
+      radAngles.push((i / radCount) * (Math.PI / 2));
+    }
+
+    // 1. Draw structural radiating anchor threads from corner
+    ctx.strokeStyle = 'rgba(215, 225, 230, 0.65)';
+    ctx.lineWidth = 1.6;
+    for (let i = 0; i <= radCount; i++) {
+      const angle = radAngles[i];
+      const maxLen = 490 - (Math.random() - 0.5) * 40;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      const midX = Math.cos(angle) * maxLen * 0.5;
+      const midY = Math.sin(angle) * maxLen * 0.5 + 8; // slight sag
+      const endX = Math.cos(angle) * maxLen;
+      const endY = Math.sin(angle) * maxLen;
+      ctx.quadraticCurveTo(midX, midY, endX, endY);
+      ctx.stroke();
+    }
+
+    // 2. Concentric sagging spiral/catenary threads connecting the radii
+    const ringCount = 22;
+    for (let r = 1; r <= ringCount; r++) {
+      const dist = (r / ringCount) * 470;
+      ctx.strokeStyle = `rgba(205, 218, 225, ${0.35 + (1 - r / ringCount) * 0.4})`;
+      ctx.lineWidth = 1.1;
+
+      for (let i = 0; i < radCount; i++) {
+        // Occasional broken web gap
+        if (r > 6 && Math.random() < 0.18) continue;
+
+        const a1 = radAngles[i];
+        const a2 = radAngles[i + 1];
+
+        const x1 = Math.cos(a1) * dist;
+        const y1 = Math.sin(a1) * dist;
+        const x2 = Math.cos(a2) * dist;
+        const y2 = Math.sin(a2) * dist;
+
+        // Catenary sag towards center
+        const sagAmount = dist * 0.12;
+        const midA = (a1 + a2) * 0.5;
+        const cx = Math.cos(midA) * (dist - sagAmount);
+        const cy = Math.sin(midA) * (dist - sagAmount);
+
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.quadraticCurveTo(cx, cy, x2, y2);
+        ctx.stroke();
+
+        // Dust motes caught on the web intersection
+        if (Math.random() < 0.25) {
+          ctx.fillStyle = 'rgba(235, 240, 245, 0.75)';
+          ctx.beginPath();
+          ctx.arc(x1 + (Math.random() - 0.5) * 4, y1 + (Math.random() - 0.5) * 4, 1.2 + Math.random() * 1.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+
+    // 3. Frayed dangling loose strands
+    ctx.strokeStyle = 'rgba(195, 210, 220, 0.45)';
+    ctx.lineWidth = 0.9;
+    for (let f = 0; f < 15; f++) {
+      const startAngle = Math.random() * (Math.PI / 2);
+      const startDist = 150 + Math.random() * 300;
+      const sx = Math.cos(startAngle) * startDist;
+      const sy = Math.sin(startAngle) * startDist;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.bezierCurveTo(
+        sx + (Math.random() - 0.5) * 30, sy + 30,
+        sx + (Math.random() - 0.5) * 40, sy + 70,
+        sx + (Math.random() - 0.5) * 20, sy + 110 + Math.random() * 50
+      );
+      ctx.stroke();
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    this.cache.set('cobweb_corner', texture);
+    return texture;
+  }
+
+  // 14. Hanging Corridor & Doorway Drooping Cobweb (복도 천장 및 문틀 드리운 거미줄)
+  public static getCorridorCobwebTexture(): THREE.CanvasTexture {
+    if (this.cache.has('cobweb_hanging')) return this.cache.get('cobweb_hanging')!;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d')!;
+
+    ctx.clearRect(0, 0, 512, 512);
+
+    // Draped webs hanging from the top edge (y=0)
+    const anchors = [0, 60, 140, 220, 290, 370, 450, 512];
+
+    // Deep hanging swag curves
+    for (let pass = 0; pass < 4; pass++) {
+      const dropMax = 200 + pass * 75;
+      for (let i = 0; i < anchors.length - 1; i++) {
+        const x1 = anchors[i];
+        const x2 = anchors[i + 1];
+        const midX = (x1 + x2) * 0.5;
+        const sagY = 80 + pass * 60 + (Math.random() - 0.5) * 30;
+
+        ctx.strokeStyle = `rgba(215, 225, 235, ${0.45 - pass * 0.08})`;
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(x1, 0);
+        ctx.quadraticCurveTo(midX, sagY, x2, 0);
+        ctx.stroke();
+
+        // Vertical dangling gossamer threads
+        for (let t = 0; t < 3; t++) {
+          const tx = x1 + (t + 1) * ((x2 - x1) / 4);
+          const tStartY = sagY * 0.5 + Math.random() * 20;
+          const tEndY = sagY + 40 + Math.random() * dropMax * 0.5;
+          ctx.strokeStyle = 'rgba(200, 215, 225, 0.35)';
+          ctx.lineWidth = 0.9;
+          ctx.beginPath();
+          ctx.moveTo(tx, tStartY);
+          ctx.bezierCurveTo(
+            tx + (Math.random() - 0.5) * 15, tStartY + 40,
+            tx + (Math.random() - 0.5) * 20, tStartY + 80,
+            tx + (Math.random() - 0.5) * 10, tEndY
+          );
+          ctx.stroke();
+
+          // Little dust specks
+          if (Math.random() < 0.4) {
+            ctx.fillStyle = 'rgba(230, 235, 240, 0.6)';
+            ctx.beginPath();
+            ctx.arc(tx, (tStartY + tEndY) * 0.5, 1.3, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    this.cache.set('cobweb_hanging', texture);
+    return texture;
+  }
+
+  // 15. 3D Peeling Wallpaper Strip Texture (벽에서 너덜너덜하게 뜯겨 나와 늘어진 벽지 조각)
+  public static getPeelingPaperStripTexture(): THREE.CanvasTexture {
+    if (this.cache.has('peeling_paper')) return this.cache.get('peeling_paper')!;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d')!;
+
+    ctx.clearRect(0, 0, 256, 512);
+
+    // Weathered antique paper strip
+    const grad = ctx.createLinearGradient(0, 0, 0, 512);
+    grad.addColorStop(0, '#383025');
+    grad.addColorStop(0.6, '#2a221a');
+    grad.addColorStop(1, '#1b140e');
+    ctx.fillStyle = grad;
+
+    // Tattered curved strip shape
+    ctx.beginPath();
+    ctx.moveTo(40, 0);
+    ctx.lineTo(216, 0);
+    ctx.bezierCurveTo(230, 180, 200, 320, 180, 480);
+    ctx.lineTo(160, 510);
+    ctx.lineTo(130, 460);
+    ctx.lineTo(90, 500);
+    ctx.lineTo(60, 440);
+    ctx.bezierCurveTo(40, 320, 50, 160, 40, 0);
+    ctx.closePath();
+    ctx.fill();
+
+    // Traditional faded wallpaper patterns on the strip
+    ctx.strokeStyle = 'rgba(80, 68, 52, 0.4)';
+    ctx.lineWidth = 1.2;
+    for (let y = 30; y < 450; y += 40) {
+      ctx.beginPath();
+      ctx.arc(128, y, 18, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Curled light highlight edge
+    ctx.strokeStyle = '#c8bc9f';
+    ctx.lineWidth = 2.0;
+    ctx.stroke();
+
+    // Mold speckles on the strip
+    for (let m = 0; m < 35; m++) {
+      ctx.fillStyle = Math.random() > 0.5 ? 'rgba(8, 12, 8, 0.85)' : 'rgba(25, 20, 12, 0.7)';
+      ctx.beginPath();
+      ctx.arc(70 + Math.random() * 110, 20 + Math.random() * 450, 2 + Math.random() * 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    this.cache.set('peeling_paper', texture);
+    return texture;
+  }
+
+  // 16. Soft Radial Glow Dust Particle (부유하는 고택 먼지/포자 파티클)
+  public static getDustParticleTexture(): THREE.CanvasTexture {
+    if (this.cache.has('dust_particle')) return this.cache.get('dust_particle')!;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d')!;
+
+    ctx.clearRect(0, 0, 128, 128);
+
+    const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    grad.addColorStop(0, 'rgba(255, 248, 230, 1.0)');
+    grad.addColorStop(0.25, 'rgba(220, 210, 190, 0.75)');
+    grad.addColorStop(0.55, 'rgba(160, 150, 130, 0.35)');
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(64, 64, 64, 0, Math.PI * 2);
+    ctx.fill();
+
+    const texture = new THREE.CanvasTexture(canvas);
+    this.cache.set('dust_particle', texture);
+    return texture;
+  }
+
+  // 17. Ground Cold Ghost Mist / Smoke Puff (바닥을 기는 음산한 냉기 안개 파티클)
+  public static getMistSmokeTexture(): THREE.CanvasTexture {
+    if (this.cache.has('mist_smoke')) return this.cache.get('mist_smoke')!;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d')!;
+
+    ctx.clearRect(0, 0, 256, 256);
+
+    // Multi-lobed billowy spectral puff
+    const lobes = [
+      { x: 128, y: 128, r: 100, a: 0.65 },
+      { x: 95, y: 110, r: 80, a: 0.55 },
+      { x: 160, y: 115, r: 85, a: 0.55 },
+      { x: 110, y: 155, r: 75, a: 0.5 },
+      { x: 150, y: 150, r: 80, a: 0.5 },
+    ];
+
+    for (const lobe of lobes) {
+      const grad = ctx.createRadialGradient(lobe.x, lobe.y, 0, lobe.x, lobe.y, lobe.r);
+      grad.addColorStop(0, `rgba(180, 205, 215, ${lobe.a})`);
+      grad.addColorStop(0.4, `rgba(140, 170, 180, ${lobe.a * 0.6})`);
+      grad.addColorStop(0.75, `rgba(90, 120, 130, ${lobe.a * 0.25})`);
+      grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(lobe.x, lobe.y, lobe.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    this.cache.set('mist_smoke', texture);
     return texture;
   }
 }

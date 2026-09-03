@@ -128,6 +128,9 @@ export class AbandonedMansionAssets {
   public static bossArenaFloorMat: THREE.MeshStandardMaterial;
   public static bossPillarRuneMat: THREE.MeshStandardMaterial;
   public static bossSpiritualFireMat: THREE.MeshBasicMaterial;
+  public static cobwebCornerMat: THREE.MeshStandardMaterial;
+  public static cobwebHangingMat: THREE.MeshStandardMaterial;
+  public static peelingPaperMat: THREE.MeshStandardMaterial;
 
   // Reusable Core Geometries
   public static pillarGeo: THREE.BoxGeometry;
@@ -149,10 +152,39 @@ export class AbandonedMansionAssets {
 
     const wallTex = AbandonedMansionTextures.getMoldyWallTexture();
     wallTex.repeat.set(1.5, 1);
+    const wallBump = AbandonedMansionTextures.getWallBumpTexture();
+    wallBump.repeat.set(1.5, 1);
     this.wallMat = new THREE.MeshStandardMaterial({
       map: wallTex,
+      bumpMap: wallBump,
+      bumpScale: 0.05,
+      roughness: 0.92,
+      metalness: 0.04,
+    });
+
+    this.cobwebCornerMat = new THREE.MeshStandardMaterial({
+      map: AbandonedMansionTextures.getCobwebTexture(),
+      transparent: true,
+      opacity: 0.84,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      roughness: 0.92,
+    });
+
+    this.cobwebHangingMat = new THREE.MeshStandardMaterial({
+      map: AbandonedMansionTextures.getCorridorCobwebTexture(),
+      transparent: true,
+      opacity: 0.78,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      roughness: 0.92,
+    });
+
+    this.peelingPaperMat = new THREE.MeshStandardMaterial({
+      map: AbandonedMansionTextures.getPeelingPaperStripTexture(),
+      transparent: true,
+      side: THREE.DoubleSide,
       roughness: 0.9,
-      metalness: 0.05,
     });
 
     const ceilTex = AbandonedMansionTextures.getCeilingTexture();
@@ -382,7 +414,37 @@ export class AbandonedMansionAssets {
     return mesh;
   }
 
-  // Create wall segment with top wooden lintel and bottom skirting board
+  // 1. Corner Cobweb Mesh (벽과 천장 구석 모서리 거미줄)
+  public static createCornerCobweb(size: number = 0.85): THREE.Mesh {
+    this.initMaterials();
+    const geo = this.getPlane(size, size);
+    const mesh = new THREE.Mesh(geo, this.cobwebCornerMat);
+    mesh.renderOrder = 2;
+    return mesh;
+  }
+
+  // 2. Draped Corridor & Doorway Cobweb (인방 및 복도 아래로 드리운 거미줄)
+  public static createHangingCobweb(width: number = 1.6, height: number = 0.6): THREE.Mesh {
+    this.initMaterials();
+    const geo = this.getPlane(width, height);
+    const mesh = new THREE.Mesh(geo, this.cobwebHangingMat);
+    mesh.renderOrder = 2;
+    return mesh;
+  }
+
+  // 3. 3D Peeling Wallpaper Strip (벽에서 뜯겨나와 펄럭이는 3D 벽지 조각)
+  public static createPeelingStrip(width: number = 0.32, height: number = 0.85): THREE.Group {
+    this.initMaterials();
+    const group = new THREE.Group();
+    const planeGeo = this.getPlane(width, height);
+    const mesh = new THREE.Mesh(planeGeo, this.peelingPaperMat);
+    mesh.position.y = -height / 2;
+    mesh.rotation.x = 0.16; // slightly curled outward from wall
+    group.add(mesh);
+    return group;
+  }
+
+  // Create wall segment with top wooden lintel, bottom skirting, peeling wallpaper, and cobwebs
   public static createWallSegment(width: number, height: number = 3.2): THREE.Group {
     this.initMaterials();
     const group = new THREE.Group();
@@ -406,6 +468,44 @@ export class AbandonedMansionAssets {
     const botBeam = new THREE.Mesh(botBeamGeo, this.woodPillarMat);
     botBeam.position.y = 0.06;
     group.add(botBeam);
+
+    // Horror Details: Cobwebs in upper corners & 3D Peeling Wallpaper
+    if (width >= 1.4) {
+      // Upper Left Corner Cobwebs (Front & Back)
+      const cobwebLeft = this.createCornerCobweb(Math.min(0.85, width * 0.45));
+      cobwebLeft.position.set(-width / 2 + 0.4, height - 0.48, 0.088);
+      group.add(cobwebLeft);
+
+      const cobwebLeftBack = this.createCornerCobweb(Math.min(0.85, width * 0.45));
+      cobwebLeftBack.rotation.y = Math.PI;
+      cobwebLeftBack.position.set(-width / 2 + 0.4, height - 0.48, -0.088);
+      group.add(cobwebLeftBack);
+
+      // Upper Right Corner Cobweb
+      const cobwebRight = this.createCornerCobweb(Math.min(0.85, width * 0.45));
+      cobwebRight.scale.x = -1;
+      cobwebRight.position.set(width / 2 - 0.4, height - 0.48, 0.088);
+      group.add(cobwebRight);
+    }
+
+    // 3D Tattered Wallpaper strips on wider wall spans
+    if (width >= 2.8) {
+      // Front peeling wallpaper strip
+      const peelFront = this.createPeelingStrip(0.38, 0.95);
+      peelFront.position.set(-width * 0.22, height * 0.58, 0.09);
+      group.add(peelFront);
+
+      // Back peeling wallpaper strip
+      const peelBack = this.createPeelingStrip(0.32, 0.8);
+      peelBack.rotation.y = Math.PI;
+      peelBack.position.set(width * 0.25, height * 0.48, -0.09);
+      group.add(peelBack);
+
+      // Drooping cobweb under top lintel
+      const lintelWeb = this.createHangingCobweb(Math.min(2.0, width * 0.6), 0.45);
+      lintelWeb.position.set(0, height - 0.38, 0.086);
+      group.add(lintelWeb);
+    }
 
     return group;
   }
@@ -437,6 +537,11 @@ export class AbandonedMansionAssets {
     const rightPost = new THREE.Mesh(this.getBox(0.12, height + 0.1, 0.14), frameMat);
     rightPost.position.set(width / 2 + 0.02, height / 2, 0);
     group.add(rightPost);
+
+    // Doorway Corner Cobweb (문틀 상단에 엉켜있는 거미줄)
+    const doorCobweb = this.createCornerCobweb(0.6);
+    doorCobweb.position.set(-width / 2 + 0.3, height - 0.28, 0.08);
+    group.add(doorCobweb);
 
     // Sliding Door Leaf Group (미닫이 문짝)
     const leaf = new THREE.Group();

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { RelicItem, HauntedEvent, InventoryItem, BossState } from '../types';
 import {
   Compass,
@@ -131,6 +131,19 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
   const lowSanitySeverity = isLowSanity ? Math.min(1, Math.max(0, (30 - sanity) / 30)) : 0;
   const isBossFight = bossState && bossState.active;
 
+  // ESC / Enter / Space / E 키로 조사창 신속 닫기
+  useEffect(() => {
+    if (!investigationModal) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Enter' || e.code === 'Space' || e.code === 'KeyE') {
+        e.preventDefault();
+        onCloseInvestigation();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [investigationModal, onCloseInvestigation]);
+
   return (
     <div className="absolute inset-0 pointer-events-none select-none z-10 flex flex-col justify-between p-3 sm:p-5 overflow-hidden font-sans">
       {/* 1. CRT Scanline & Horror Vignette Overlay */}
@@ -247,7 +260,7 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
             <button
               onClick={onToggleLight}
               className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-neutral-950/85 border border-neutral-800 hover:border-amber-600/80 backdrop-blur-md text-xs font-mono transition text-neutral-300 cursor-pointer shadow-md active:scale-95"
-              title="[F] 손전등/호롱불 모드 전환"
+              title="[F] 손전등 점등/소등"
             >
               {lightMode === 'flashlight' && (
                 <>
@@ -314,19 +327,24 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
 
         {/* BOSS HEALTH BAR (Appears when Eoduksini Boss Battle is Active) */}
         {isBossFight && (
-          <div className="self-center w-full max-w-2xl px-4 py-2.5 rounded-3xl bg-neutral-950/95 border-2 border-rose-600/90 shadow-[0_0_35px_rgba(225,29,72,0.4)] backdrop-blur-xl animate-fade-in flex flex-col gap-1.5">
-            <div className="flex items-center justify-between font-mono">
+          <div className="self-center w-full max-w-2xl px-4 py-2.5 rounded-3xl bg-neutral-950/95 border-2 border-rose-600/90 shadow-[0_0_35px_rgba(225,29,72,0.4)] backdrop-blur-xl animate-fade-in flex flex-col gap-2">
+            <div className="flex items-center justify-between font-mono flex-wrap gap-1">
               <div className="flex items-center gap-2">
                 <Skull className={`w-5 h-5 ${bossState.isEnraged ? 'text-red-500 animate-bounce' : 'text-rose-400'}`} />
                 <span className="text-sm font-extrabold text-rose-300 tracking-wider">
                   {bossState.name}
                   {bossState.isEnraged ? ' [2단계: 암흑 폭주]' : ' [1단계: 흑야의 형상]'}
                 </span>
+                {bossState.currentPatternName && (
+                  <span className="text-[11px] px-2 py-0.5 rounded-md bg-purple-950/80 border border-purple-700/60 text-purple-300">
+                    {bossState.currentPatternName}
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-2 text-xs font-bold text-rose-400">
-                <span>사인참사검 타격:</span>
+                <span>체력:</span>
                 <span className="text-sm font-mono text-white bg-rose-950 px-2 py-0.5 rounded-lg border border-rose-700">
-                  {bossState.currentHp} / {bossState.maxHp} 격
+                  {bossState.currentHp} / {bossState.maxHp} HP
                 </span>
               </div>
             </div>
@@ -348,6 +366,21 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
                   />
                 );
               })}
+            </div>
+
+            {/* Boss Status Badge: Invulnerable vs Groggy (Stunned) */}
+            <div className="flex items-center justify-between text-xs font-mono gap-2">
+              {bossState.isStaggered ? (
+                <div className="flex-1 flex items-center justify-center gap-1.5 py-1 px-3 rounded-xl bg-amber-500/20 border border-amber-400 text-amber-200 font-bold animate-pulse shadow-[0_0_15px_rgba(245,158,11,0.3)]">
+                  <Sparkles className="w-4 h-4 text-amber-300 animate-spin" />
+                  <span>[기절 / 그로기 상태! 무적 해제] 타격 기회: <span className="text-amber-400 text-sm underline">{bossState.staggerHitsLeft ?? 2} / 2회</span> 남음!</span>
+                </div>
+              ) : (
+                <div className="flex-1 flex items-center justify-center gap-1.5 py-1 px-3 rounded-xl bg-purple-950/60 border border-purple-700/60 text-purple-300 text-[11px]">
+                  <ShieldAlert className="w-3.5 h-3.5 text-purple-400" />
+                  <span>[흑무 무적 상태] 공격 진행 중에는 무적입니다! 패턴 종료 후 기절 타이밍을 노리십시오.</span>
+                </div>
+              )}
             </div>
 
             {/* Attack Warning Banner */}
@@ -437,19 +470,20 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
           {/* Slots */}
           {inventory.map((item, idx) => {
             const isSelected = activeSlotIndex === idx;
+            const hotkeyLabel = idx === 0 ? '1 · Z' : idx === 1 ? '2 · X' : '3 · C';
             return (
               <button
                 key={item.id}
                 onClick={() => onSelectSlot(idx)}
-                className={`relative flex flex-col items-center justify-center w-20 sm:w-28 h-14 sm:h-16 rounded-2xl border transition-all duration-200 cursor-pointer ${
+                className={`relative flex flex-col items-center justify-center w-22 sm:w-28 h-14 sm:h-16 rounded-2xl border transition-all duration-200 cursor-pointer ${
                   isSelected
                     ? 'bg-amber-950/60 border-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.35)] scale-105'
                     : 'bg-neutral-900/70 border-neutral-800/80 hover:border-neutral-700 opacity-80 hover:opacity-100'
                 } ${!item.unlocked ? 'grayscale opacity-40' : ''}`}
               >
-                {/* Slot Number Badge */}
-                <span className="absolute top-1 left-2 text-[10px] font-mono text-neutral-500 font-bold">
-                  {idx + 1}
+                {/* Slot Number & Hotkey Badge */}
+                <span className="absolute top-1 left-2 text-[10px] font-mono text-neutral-400 font-bold">
+                  [{hotkeyLabel}]
                 </span>
 
                 {/* Icon */}
@@ -518,11 +552,13 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
           <div className="hidden sm:flex items-center gap-2.5 px-3.5 py-1.5 rounded-2xl bg-neutral-950/85 border border-neutral-800 text-[11px] font-mono text-neutral-400 shadow-lg">
             <div><strong className="text-neutral-200">WASD</strong> 이동</div>
             <span className="text-neutral-700">•</span>
-            <div><strong className="text-neutral-200">Shift</strong> 질주</div>
+            <div><strong className="text-amber-300 font-bold">[1번/Z]</strong> 회중전등</div>
             <span className="text-neutral-700">•</span>
-            <div><strong className="text-amber-400">E 키</strong> 문 열기·조사</div>
+            <div><strong className="text-cyan-300 font-bold">[좌클릭/F]</strong> 전등·무기 사용</div>
             <span className="text-neutral-700">•</span>
-            <div><strong className="text-cyan-300">F/클릭</strong> 아이템 사용(사인검 베기)</div>
+            <div><strong className="text-amber-400 font-bold">[E / 우클릭]</strong> 정밀 조사·상호작용</div>
+            <span className="text-neutral-700">•</span>
+            <div><strong className="text-neutral-300">[휠/1·2·3]</strong> 무기 교체</div>
           </div>
 
           {/* Stamina Bar */}
