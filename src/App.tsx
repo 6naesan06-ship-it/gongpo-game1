@@ -28,6 +28,7 @@ export default function App() {
 
   // Player Stats
   const [sanity, setSanity] = useState<number>(100);
+  const [maxSanity, setMaxSanity] = useState<number>(100);
   const [stamina, setStamina] = useState<number>(100);
   const [battery, setBattery] = useState<number>(100);
   const [lightMode, setLightMode] = useState<'flashlight' | 'lantern' | 'off'>('flashlight');
@@ -117,6 +118,8 @@ export default function App() {
 
     engine.onStatsUpdate = () => {
       if (!engineRef.current) return;
+      setSanity(engineRef.current.sanity);
+      setMaxSanity(engineRef.current.maxSanity);
       setCollectedRelics([...engineRef.current.collectedRelics]);
       setRoomsExplored(engineRef.current.roomsExplored.size);
       setInventory([...engineRef.current.inventory]);
@@ -128,6 +131,7 @@ export default function App() {
     const syncInterval = setInterval(() => {
       if (engineRef.current) {
         setSanity(engineRef.current.sanity);
+        setMaxSanity(engineRef.current.maxSanity);
         setStamina(engineRef.current.stamina);
         setBattery(engineRef.current.battery);
         setLightMode(engineRef.current.lightMode);
@@ -288,6 +292,7 @@ export default function App() {
       {gameStatus === 'playing' && (
         <MazeHUD
           sanity={sanity}
+          maxSanity={maxSanity}
           stamina={stamina}
           battery={battery}
           lightMode={lightMode}

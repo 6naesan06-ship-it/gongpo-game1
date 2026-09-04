@@ -31,6 +31,7 @@ import {
 
 interface MazeHUDProps {
   sanity: number;
+  maxSanity?: number;
   stamina: number;
   battery: number;
   lightMode: 'flashlight' | 'lantern' | 'off';
@@ -75,6 +76,7 @@ interface MazeHUDProps {
 
 export const MazeHUD: React.FC<MazeHUDProps> = ({
   sanity,
+  maxSanity = 100,
   stamina,
   battery,
   lightMode,
@@ -127,8 +129,10 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
   };
 
   const activeItem = inventory[activeSlotIndex] || inventory[0];
-  const isLowSanity = sanity <= 30;
-  const lowSanitySeverity = isLowSanity ? Math.min(1, Math.max(0, (30 - sanity) / 30)) : 0;
+  const maxSan = maxSanity && maxSanity > 0 ? maxSanity : 100;
+  const sanityPercent = Math.min(100, Math.max(0, (sanity / maxSan) * 100));
+  const isLowSanity = sanityPercent <= 30;
+  const lowSanitySeverity = isLowSanity ? Math.min(1, Math.max(0, (30 - sanityPercent) / 30)) : 0;
   const isBossFight = bossState && bossState.active;
 
   // ESC / Enter / Space / E 키로 조사창 신속 닫기
@@ -153,7 +157,7 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
       <div
         className="absolute inset-0 pointer-events-none z-0 transition-opacity duration-300"
         style={{
-          boxShadow: `inset 0 0 ${100 - sanity * 0.7}px rgba(${isBossFight ? '90, 10, 60' : sanity < 40 ? '110, 10, 10' : '0, 0, 0'}, ${0.45 + (100 - sanity) * 0.003})`,
+          boxShadow: `inset 0 0 ${100 - sanityPercent * 0.7}px rgba(${isBossFight ? '90, 10, 60' : sanityPercent < 40 ? '110, 10, 10' : '0, 0, 0'}, ${0.45 + (100 - sanityPercent) * 0.003})`,
         }}
       />
 
@@ -220,24 +224,25 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
               {isLowSanity ? (
                 <Heart className="w-4 h-4 text-red-500 animate-ping" />
               ) : (
-                <Activity className={`w-4 h-4 ${sanity < 50 ? 'text-amber-500' : 'text-emerald-400'}`} />
+                <Activity className={`w-4 h-4 ${sanityPercent < 50 ? 'text-amber-500' : 'text-emerald-400'}`} />
               )}
               <div className="flex-1">
                 <div className="flex justify-between items-center text-[11px] font-mono mb-1">
                   <span className={isLowSanity ? 'text-red-300 font-bold flex items-center gap-1' : 'text-neutral-400'}>
                     정신력 (SAN)
+                    {maxSan > 100 && <span className="text-[10px] text-amber-400 font-bold">[결전각성]</span>}
                     {isLowSanity && <span className="text-[10px] text-red-400 animate-pulse">(심장박동 위험)</span>}
                   </span>
-                  <span className={`font-bold ${isLowSanity ? 'text-red-400' : sanity < 60 ? 'text-amber-400' : 'text-emerald-400'}`}>
-                    {Math.round(sanity)} %
+                  <span className={`font-bold ${isLowSanity ? 'text-red-400' : sanityPercent < 60 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                    {maxSan > 100 ? `${Math.round(sanity)}/${maxSan}` : `${Math.round(sanity)}%`}
                   </span>
                 </div>
                 <div className="w-full h-1.5 bg-neutral-900 rounded-full overflow-hidden border border-neutral-800">
                   <div
                     className={`h-full transition-all duration-300 ${
-                      isLowSanity ? 'bg-red-600' : sanity < 60 ? 'bg-amber-500' : 'bg-emerald-500'
+                      isLowSanity ? 'bg-red-600' : sanityPercent < 60 ? 'bg-amber-500' : 'bg-emerald-500'
                     }`}
-                    style={{ width: `${sanity}%` }}
+                    style={{ width: `${sanityPercent}%` }}
                   />
                 </div>
               </div>

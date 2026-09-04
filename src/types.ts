@@ -63,7 +63,8 @@ export interface EscapeVictoryData {
 }
 
 export interface PlayerStats {
-  sanity: number; // 0 ~ 100
+  sanity: number; // 0 ~ 100 (or 0 ~ 300 in boss fight)
+  maxSanity: number; // 100 in maze, 300 in boss fight
   stamina: number; // 0 ~ 100
   battery: number; // 0 ~ 100
   lightMode: 'flashlight' | 'lantern' | 'off';

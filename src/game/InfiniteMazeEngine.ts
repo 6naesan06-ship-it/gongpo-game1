@@ -66,6 +66,7 @@ export class InfiniteMazeEngine {
   public isSprinting: boolean = false;
   public stamina: number = 100;
   public sanity: number = 100;
+  public maxSanity: number = 100;
   public battery: number = 100;
   public lightMode: 'flashlight' | 'lantern' | 'off' = 'flashlight';
 
@@ -1161,15 +1162,19 @@ export class InfiniteMazeEngine {
 
   // Handle player input and smooth collision
   private updatePlayerMovement(delta: number) {
-    const isSprint = this.keys['ShiftLeft'] || this.keys['ShiftRight'] || this.isSprinting;
-    const speed = isSprint && this.stamina > 10 ? 3.8 : 2.2;
+    // 보스전 중에는 자동 무한 달리기 (Shift 키를 누르지 않아도 자동으로 전력 질주 속도 유지 & 스태미나 무한)
+    const isSprint = this.isBossFightActive || this.keys['ShiftLeft'] || this.keys['ShiftRight'] || this.isSprinting;
+    const speed = this.isBossFightActive ? 4.2 : (isSprint && this.stamina > 10 ? 3.8 : 2.2);
 
     const keyW = this.keys['KeyW'] || this.keys['ArrowUp'];
     const keyS = this.keys['KeyS'] || this.keys['ArrowDown'];
     const keyA = this.keys['KeyA'];
     const keyD = this.keys['KeyD'];
 
-    if (isSprint && (keyW || keyS || keyA || keyD || this.virtualMoveVector.y !== 0)) {
+    if (this.isBossFightActive) {
+      // 보스전 중 무한 스태미나
+      this.stamina = 100;
+    } else if (isSprint && (keyW || keyS || keyA || keyD || this.virtualMoveVector.y !== 0)) {
       this.stamina = Math.max(0, this.stamina - delta * 22);
     } else {
       this.stamina = Math.min(100, this.stamina + delta * 15);
@@ -1503,7 +1508,7 @@ export class InfiniteMazeEngine {
         this.setActiveSlot(1);
         mazeAudio.playItemAcquire();
         mazeAudio.playTalismanExorcism();
-        this.sanity = Math.min(100, this.sanity + 40);
+        this.sanity = Math.min(this.maxSanity, this.sanity + 40);
 
         if (this.onHauntedEvent) {
           this.onHauntedEvent({
@@ -1531,7 +1536,7 @@ export class InfiniteMazeEngine {
       this.setActiveSlot(2);
       mazeAudio.playItemAcquire();
       mazeAudio.playSwordSlash();
-      this.sanity = 100; // 정신력 완전 회복!
+      this.sanity = this.maxSanity; // 정신력 완전 회복!
 
       if (this.vmSwordLight) {
         this.vmSwordLight.intensity = 5.0; // 성광 폭발
@@ -1561,27 +1566,37 @@ export class InfiniteMazeEngine {
       return;
     } else if (item.type === 'altar') {
       mazeAudio.playInspectSound();
-      // Restore Sanity to 100% & Battery +50%
-      this.sanity = 100;
+      // Restore Sanity to max & Battery +50%
+      this.sanity = this.maxSanity;
       this.battery = Math.min(100, this.battery + 50);
       mazeAudio.playShamanBell();
       if (this.onInspectCallback) {
         this.onInspectCallback(
           item.relic || null,
           '사당 제사상 앞의 기도',
-          '타오르는 백색 촛불과 은은한 향내 속에서 정신력(SAN 100%)을 완전히 회복하고 회중전등 배터리(+50%)를 충전합니다.'
+          `타오르는 백색 촛불과 은은한 향내 속에서 정신력(SAN ${this.maxSanity})을 완전히 회복하고 회중전등 배터리(+50%)를 충전합니다.`
         );
       }
     } else if (item.relic) {
       mazeAudio.playInspectSound();
       // Collect relic & boost
       const relic = item.relic;
-      this.sanity = Math.min(100, this.sanity + 20);
+      this.sanity = Math.min(this.maxSanity, this.sanity + 20);
       this.battery = Math.min(100, this.battery + 25);
 
       if (!this.collectedRelics.some((r) => r.id === relic.id)) {
         this.collectedRelics.push(relic);
         mazeAudio.playShamanBell();
+
+        const currentRelics = this.collectedRelics.length;
+        if (this.onHauntedEvent) {
+          this.onHauntedEvent({
+            id: `relic_anger_${Date.now()}`,
+            type: 'ghost_whisper',
+            message: `[원혼의 격노] 유물 [${relic.name}] 수습! 귀신의 이동 속도(+${currentRelics * 10}%)와 감지 범위(+${(currentRelics * 0.9).toFixed(1)}m)가 상승했습니다!`,
+            sanityDrain: 0,
+          });
+        }
 
         // Check 20 relics collection -> Trigger Eoduksini Boss Battle!
         if (this.collectedRelics.length >= 20 && !this.isBossFightActive && !this.isEscaped) {
@@ -1607,6 +1622,11 @@ export class InfiniteMazeEngine {
   public transitionToBossFight() {
     if (this.isBossFightActive || this.isEscaped) return;
     this.isBossFightActive = true;
+
+    // 보스전 입장 시 플레이어 정신력 100에서 300으로 대폭 증폭 (보스전 한정) & 스태미나 충전
+    this.maxSanity = 300;
+    this.sanity = 300;
+    this.stamina = 100;
 
     // Unlock weapons & select Sa-in Sword
     this.inventory[0].unlocked = true;
@@ -2194,8 +2214,16 @@ export class InfiniteMazeEngine {
         if (armL) armL.rotation.x = 0.8;
         if (armR) armR.rotation.x = 0.8;
         if (distToPlayer < 4.5 && this.bossActionTimer < 0.4) {
-          this.sanity = Math.max(0, this.sanity - (this.bossState.isEnraged ? 26 : 18));
-          mazeAudio.playHeartbeat(150);
+          const dmg = this.bossState.isEnraged ? 26 : 18;
+          this.sanity = Math.max(0, this.sanity - dmg);
+          if (this.bossJumpscareCooldown <= 0) {
+            this.bossJumpscareCooldown = 4.0;
+            this.triggerJumpscare('boss_demon', '어둑시니의 흉조 참격', dmg);
+          } else {
+            mazeAudio.playGhostJumpscareScream('boss_demon');
+            mazeAudio.playHeartbeat(150);
+            this.cameraShakeIntensity = 1.1;
+          }
         }
       }
       // Pattern 3: Black Lightning Storm Execution
@@ -2428,10 +2456,16 @@ export class InfiniteMazeEngine {
         continue;
       }
 
-      // Proximity & Behavioral States: Detection radius 7.0 meters
-      if (dist < 7.0) {
-        const baseSpeed = ghost.speed || 1.20;
-        ghost.state = dist < 3.5 ? 'charging' : 'stalking';
+      // Proximity & Behavioral States: Detection radius and speed scaled by collected relics
+      // 유물을 수습할수록 귀신의 스피드와 탐지/추적 범위가 비례하여 대폭 증가!
+      const relicCount = this.collectedRelics.length;
+      const relicSpeedMultiplier = 1.0 + relicCount * 0.10; // 유물당 속도 10% 증가
+      const detectionRadius = 7.0 + relicCount * 0.90; // 유물당 감지 범위 0.9m 확장
+      const chargeRadius = 3.5 + relicCount * 0.50; // 유물당 돌진 범위 확장
+
+      if (dist < detectionRadius) {
+        const baseSpeed = (ghost.speed || 1.20) * relicSpeedMultiplier;
+        ghost.state = dist < chargeRadius ? 'charging' : 'stalking';
         ghost.targetPos.copy(this.playerPos);
 
         const dir = new THREE.Vector3().subVectors(this.playerPos, ghost.pos);
@@ -2440,12 +2474,12 @@ export class InfiniteMazeEngine {
         if (dir.length() > 0.1) {
           dir.normalize();
 
-          // Face player smoothly
+          // Face player smoothly (faster turning as relics increase)
           const targetAngle = Math.atan2(dir.x, dir.z);
-          ghost.mesh.rotation.y = THREE.MathUtils.lerp(ghost.mesh.rotation.y, targetAngle, delta * 4.0);
+          ghost.mesh.rotation.y = THREE.MathUtils.lerp(ghost.mesh.rotation.y, targetAngle, delta * (4.0 + relicCount * 0.15));
 
           // Move towards player with wall sliding collision
-          const moveSpeed = ghost.state === 'charging' ? baseSpeed * 1.2 : baseSpeed;
+          const moveSpeed = ghost.state === 'charging' ? baseSpeed * 1.3 : baseSpeed;
           const targetNextX = ghost.pos.x + dir.x * moveSpeed * delta;
           const targetNextZ = ghost.pos.z + dir.z * moveSpeed * delta;
 
@@ -2455,7 +2489,7 @@ export class InfiniteMazeEngine {
         }
 
         // Play presence sound effect and heartbeat
-        if (ghost.soundCooldown <= 0 && dist < 6.5) {
+        if (ghost.soundCooldown <= 0 && dist < (6.5 + relicCount * 0.75)) {
           ghost.soundCooldown = 5.0 + Math.random() * 4.0;
           mazeAudio.playGhostPresence();
           mazeAudio.playHeartbeat(130);
@@ -2508,9 +2542,10 @@ export class InfiniteMazeEngine {
         ghost.wanderTimer -= delta;
 
         if (ghost.wanderTimer <= 0 || ghost.pos.distanceTo(ghost.targetPos) < 0.4) {
-          ghost.wanderTimer = 3.5 + Math.random() * 4.0;
-          const testTargetX = ghost.originX + (Math.random() - 0.5) * (this.chunkSize - 2.0);
-          const testTargetZ = ghost.originZ + (Math.random() - 0.5) * (this.chunkSize - 2.0);
+          ghost.wanderTimer = Math.max(1.8, 3.5 - relicCount * 0.1) + Math.random() * 3.5;
+          const wanderSpan = (this.chunkSize - 2.0) * (1.0 + Math.min(2.0, relicCount * 0.12));
+          const testTargetX = ghost.originX + (Math.random() - 0.5) * wanderSpan;
+          const testTargetZ = ghost.originZ + (Math.random() - 0.5) * wanderSpan;
           const valid = this.resolveGhostPosition(ghost.pos.x, ghost.pos.z, testTargetX, testTargetZ);
           ghost.targetPos.set(valid.x, 0, valid.z);
         }
@@ -2522,7 +2557,7 @@ export class InfiniteMazeEngine {
           const targetAngle = Math.atan2(dir.x, dir.z);
           ghost.mesh.rotation.y = THREE.MathUtils.lerp(ghost.mesh.rotation.y, targetAngle, delta * 3.0);
 
-          const stepSpeed = (ghost.speed || 1.20) * 0.45;
+          const stepSpeed = (ghost.speed || 1.20) * relicSpeedMultiplier * 0.50;
           const targetNextX = ghost.pos.x + dir.x * stepSpeed * delta;
           const targetNextZ = ghost.pos.z + dir.z * stepSpeed * delta;
 
@@ -2562,7 +2597,11 @@ export class InfiniteMazeEngine {
     }
 
     // Update real-time dynamic heartbeat and horror background sound (active when SAN <= 30% or ghost is near)
-    mazeAudio.updateSanityHeartbeat(this.sanity, nearestGhostDist < 7.0);
+    mazeAudio.updateSanityHeartbeat(
+      this.sanity,
+      nearestGhostDist < (7.0 + this.collectedRelics.length * 0.9),
+      this.maxSanity
+    );
 
     // Proximity sanity drain from any nearby ghost
     this.ghostCheckTimer += delta;
@@ -2861,7 +2900,7 @@ export class InfiniteMazeEngine {
     this.exorcisedGhostCount++;
 
     mazeAudio.playGhostDissipate();
-    this.sanity = Math.min(100, this.sanity + 30);
+    this.sanity = Math.min(this.maxSanity, this.sanity + 30);
 
     const weaponName = weapon === 'sword' ? '사인참사검(四寅斬邪劍)' : '구천응원 봉인부적';
     if (this.onHauntedEvent) {
