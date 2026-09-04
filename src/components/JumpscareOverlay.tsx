@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { JumpscareEvent } from '../types';
-import ghostFaceImg from '../assets/images/jumpscare_ghost_face_1788411405875.jpg';
+import ghostFaceImg from '../assets/images/scary_ghost_face_1788500355128.jpg';
 import shadowDemonImg from '../assets/images/jumpscare_shadow_demon_1788411419426.jpg';
+import { mazeAudio } from '../audio/mazeHorrorAudio';
 
 interface JumpscareOverlayProps {
   event: JumpscareEvent | null;
@@ -24,6 +25,9 @@ export const JumpscareOverlay: React.FC<JumpscareOverlayProps> = ({ event, onCom
     setVisible(true);
     setShowFace(true);
     setIsFadingOut(false);
+
+    // Guaranteed scream audio trigger on jumpscare presentation
+    mazeAudio.playGhostJumpscareScream(event.variant);
 
     // 1. Strobe / Glitch flicker cycle during the initial ghost lunge (first 800ms)
     const flickerInterval = setInterval(() => {
@@ -101,8 +105,7 @@ export const JumpscareOverlay: React.FC<JumpscareOverlayProps> = ({ event, onCom
   if (!visible || !event) return null;
 
   const isBoss = event.variant === 'boss_demon';
-  const isMaiden = event.variant === 'white_maiden';
-  const selectedImage = isMaiden ? ghostFaceImg : shadowDemonImg;
+  const selectedImage = isBoss ? shadowDemonImg : ghostFaceImg;
 
   return (
     <div

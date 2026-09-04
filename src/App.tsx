@@ -191,6 +191,7 @@ export default function App() {
 
   const handleStartGame = () => {
     mazeAudio.init();
+    mazeAudio.resumeAudio();
     mazeAudio.startAmbient();
     setSanity(100);
     setStamina(100);

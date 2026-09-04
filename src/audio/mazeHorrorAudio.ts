@@ -11,6 +11,7 @@ class MazeHorrorAudio {
   // Heartbeat loop state
   private lastHeartbeatBeatTime: number = 0;
   private isHeartbeatActive: boolean = false;
+  private lastScreamTime: number = 0;
 
   public init() {
     if (this.isInitialized) return;
@@ -18,8 +19,30 @@ class MazeHorrorAudio {
       const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       this.ctx = new AudioContextClass();
       this.isInitialized = true;
+
+      // Unconditionally auto-unlock Web Audio on user interactions
+      const unlock = () => {
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume().catch(() => {});
+        }
+      };
+      window.addEventListener('click', unlock, { passive: true });
+      window.addEventListener('keydown', unlock, { passive: true });
+      window.addEventListener('pointerdown', unlock, { passive: true });
+      window.addEventListener('touchstart', unlock, { passive: true });
     } catch {
       console.warn('Web Audio API not supported');
+    }
+  }
+
+  public async resumeAudio(): Promise<void> {
+    this.ensureCtx();
+    if (this.ctx && this.ctx.state === 'suspended') {
+      try {
+        await this.ctx.resume();
+      } catch (err) {
+        console.warn('AudioContext resume error:', err);
+      }
     }
   }
 
@@ -471,41 +494,39 @@ class MazeHorrorAudio {
   // Violent Ghost Jumpscare Scream & Impact (공포 귀신 피격 시 터져 나오는 엄청나게 큰 원혼의 비명소리)
   public playGhostJumpscareScream(variant: 'white_maiden' | 'shadow_specter' | 'boss_demon' = 'white_maiden') {
     if (this.isMuted) return;
+    if (Date.now() - this.lastScreamTime < 350) return;
+    this.lastScreamTime = Date.now();
+
     this.ensureCtx();
     if (!this.ctx) return;
 
-    const t = this.ctx.currentTime;
+    if (this.ctx.state === 'suspended') {
+      this.ctx.resume().then(() => {
+        this.executeJumpscareScream(variant);
+      }).catch(() => {
+        this.executeJumpscareScream(variant);
+      });
+      return;
+    }
 
-    // Master Compressor / Limiter dedicated to this jumpscare scream to maximize loudness without clipping
-    const compressor = this.ctx.createDynamicsCompressor();
-    compressor.threshold.setValueAtTime(-12, t);
-    compressor.knee.setValueAtTime(6, t);
-    compressor.ratio.setValueAtTime(14, t);
-    compressor.attack.setValueAtTime(0.002, t);
-    compressor.release.setValueAtTime(0.25, t);
-    compressor.connect(this.ctx.destination);
+    this.executeJumpscareScream(variant);
+  }
 
+  private executeJumpscareScream(variant: 'white_maiden' | 'shadow_specter' | 'boss_demon') {
+    if (!this.ctx || this.isMuted) return;
+
+    const t = Math.max(this.ctx.currentTime, 0.01) + 0.03;
+
+    // Master Gain directly connected to destination for maximum, uncompressed loudness
     const masterGain = this.ctx.createGain();
-    masterGain.gain.setValueAtTime(1.85, t); // Powerful volume boost requested by user
-    masterGain.gain.exponentialRampToValueAtTime(0.01, t + 1.8);
-    masterGain.connect(compressor);
+    masterGain.gain.setValueAtTime(1.95, t);
+    masterGain.gain.exponentialRampToValueAtTime(0.01, t + 2.0);
+    masterGain.connect(this.ctx.destination);
 
     // 1. High-Frequency Piercing Banshee Shriek (처녀귀신/원혼의 찢어지는 비명)
-    const screamFreqs = variant === 'white_maiden'
-      ? [1150, 1340, 1680, 2250, 3100]
-      : variant === 'boss_demon'
-        ? [280, 440, 720, 1100, 1750]
-        : [840, 1020, 1420, 1950, 2600];
-
-    // Vocal cord terror tremor LFO
-    const lfo = this.ctx.createOscillator();
-    const lfoGain = this.ctx.createGain();
-    lfo.type = 'sawtooth';
-    lfo.frequency.setValueAtTime(32, t); // Frantic 32Hz flutter
-    lfoGain.gain.setValueAtTime(140, t);
-    lfo.connect(lfoGain);
-    lfo.start(t);
-    lfo.stop(t + 1.8);
+    const screamFreqs = variant === 'boss_demon'
+      ? [380, 560, 880, 1350, 1950]
+      : [1200, 1480, 1850, 2400, 3200];
 
     screamFreqs.forEach((freq, idx) => {
       if (!this.ctx) return;
@@ -513,28 +534,37 @@ class MazeHorrorAudio {
       const gain = this.ctx.createGain();
       const filter = this.ctx.createBiquadFilter();
 
-      osc.type = idx % 2 === 0 ? 'sawtooth' : 'square';
-      osc.frequency.setValueAtTime(freq * 0.8, t);
-      // Sudden shrieking attack and pitch escalation
-      osc.frequency.linearRampToValueAtTime(freq * 1.35, t + 0.08);
-      osc.frequency.exponentialRampToValueAtTime(freq * 0.65, t + 1.4);
-
+      // Vocal cord terror tremor LFO for each voice
+      const lfo = this.ctx.createOscillator();
+      const lfoGain = this.ctx.createGain();
+      lfo.type = 'sawtooth';
+      lfo.frequency.setValueAtTime(28 + idx * 4, t);
+      lfoGain.gain.setValueAtTime(120 + idx * 25, t);
+      lfo.connect(lfoGain);
       lfoGain.connect(osc.frequency);
+      lfo.start(t);
+      lfo.stop(t + 2.0);
+
+      osc.type = idx % 2 === 0 ? 'sawtooth' : 'square';
+      osc.frequency.setValueAtTime(freq * 0.75, t);
+      // Sudden shrieking attack and pitch escalation
+      osc.frequency.linearRampToValueAtTime(freq * 1.45, t + 0.08);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.60, t + 1.6);
 
       filter.type = 'bandpass';
       filter.frequency.setValueAtTime(freq, t);
-      filter.Q.setValueAtTime(4.5, t);
+      filter.Q.setValueAtTime(3.5, t);
 
-      gain.gain.setValueAtTime(0.001, t);
-      gain.gain.linearRampToValueAtTime(0.65, t + 0.03); // High loud output
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + 1.6);
+      gain.gain.setValueAtTime(0.01, t);
+      gain.gain.linearRampToValueAtTime(0.75, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 1.8);
 
       osc.connect(filter);
       filter.connect(gain);
       gain.connect(masterGain);
 
       osc.start(t);
-      osc.stop(t + 1.7);
+      osc.stop(t + 1.9);
     });
 
     // 2. Throat Guttural Distortion Roar (목을 긁으며 절규하는 탁한 음색)
@@ -542,60 +572,60 @@ class MazeHorrorAudio {
     const roarGain = this.ctx.createGain();
     const roarFilter = this.ctx.createBiquadFilter();
     roarOsc.type = 'sawtooth';
-    roarOsc.frequency.setValueAtTime(320, t);
-    roarOsc.frequency.exponentialRampToValueAtTime(80, t + 0.9);
+    roarOsc.frequency.setValueAtTime(380, t);
+    roarOsc.frequency.exponentialRampToValueAtTime(70, t + 1.1);
 
     roarFilter.type = 'lowpass';
-    roarFilter.frequency.setValueAtTime(950, t);
+    roarFilter.frequency.setValueAtTime(1100, t);
 
     roarGain.gain.setValueAtTime(0.01, t);
-    roarGain.gain.linearRampToValueAtTime(0.85, t + 0.02);
-    roarGain.gain.exponentialRampToValueAtTime(0.001, t + 1.1);
+    roarGain.gain.linearRampToValueAtTime(0.95, t + 0.02);
+    roarGain.gain.exponentialRampToValueAtTime(0.001, t + 1.3);
 
     roarOsc.connect(roarFilter);
     roarFilter.connect(roarGain);
     roarGain.connect(masterGain);
     roarOsc.start(t);
-    roarOsc.stop(t + 1.2);
+    roarOsc.stop(t + 1.4);
 
     // 3. Bone-Crushing Sub Impact Slam (심장을 강타하는 육중한 타격 충격음)
     const sub = this.ctx.createOscillator();
     const subGain = this.ctx.createGain();
     sub.type = 'sawtooth';
-    sub.frequency.setValueAtTime(160, t);
-    sub.frequency.exponentialRampToValueAtTime(28, t + 0.7);
+    sub.frequency.setValueAtTime(180, t);
+    sub.frequency.exponentialRampToValueAtTime(26, t + 0.8);
 
     const subFilter = this.ctx.createBiquadFilter();
     subFilter.type = 'lowpass';
-    subFilter.frequency.setValueAtTime(240, t);
+    subFilter.frequency.setValueAtTime(280, t);
 
-    subGain.gain.setValueAtTime(1.1, t);
-    subGain.gain.exponentialRampToValueAtTime(0.001, t + 0.9);
+    subGain.gain.setValueAtTime(1.3, t);
+    subGain.gain.exponentialRampToValueAtTime(0.001, t + 1.0);
 
     sub.connect(subFilter);
     subFilter.connect(subGain);
     subGain.connect(masterGain);
     sub.start(t);
-    sub.stop(t + 1.0);
+    sub.stop(t + 1.1);
 
     // 4. Frantic Glitch & Breath Static Noise Burst
-    const bufferSize = Math.floor(this.ctx.sampleRate * 0.6);
+    const bufferSize = Math.floor(this.ctx.sampleRate * 0.7);
     const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
     const output = noiseBuffer.getChannelData(0);
     for (let i = 0; i < bufferSize; i++) {
-      output[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.22));
+      output[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.25));
     }
 
     const whiteNoise = this.ctx.createBufferSource();
     whiteNoise.buffer = noiseBuffer;
     const noiseFilter = this.ctx.createBiquadFilter();
     noiseFilter.type = 'bandpass';
-    noiseFilter.frequency.setValueAtTime(2200, t);
-    noiseFilter.Q.setValueAtTime(2.0, t);
+    noiseFilter.frequency.setValueAtTime(2400, t);
+    noiseFilter.Q.setValueAtTime(1.8, t);
 
     const noiseGain = this.ctx.createGain();
-    noiseGain.gain.setValueAtTime(0.75, t);
-    noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+    noiseGain.gain.setValueAtTime(0.85, t);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.7);
 
     whiteNoise.connect(noiseFilter);
     noiseFilter.connect(noiseGain);
@@ -603,7 +633,7 @@ class MazeHorrorAudio {
     whiteNoise.start(t);
 
     // 5. Heavy pounding panic heartbeat
-    this.playHeartbeat(185, 0.85);
+    this.playHeartbeat(185, 0.95);
   }
 
   // Water drip in abandoned house

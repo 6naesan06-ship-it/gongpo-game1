@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { AbandonedMansionTextures } from './textures';
+import ghostFaceImg from '../assets/images/scary_ghost_face_1788500355128.jpg';
 
 export class AbandonedMansionAssets {
   // Global Geometry Cache: guarantees zero allocations during maze traversal
@@ -131,6 +132,7 @@ export class AbandonedMansionAssets {
   public static cobwebCornerMat: THREE.MeshStandardMaterial;
   public static cobwebHangingMat: THREE.MeshStandardMaterial;
   public static peelingPaperMat: THREE.MeshStandardMaterial;
+  public static ghostFaceMat: THREE.MeshBasicMaterial;
 
   // Reusable Core Geometries
   public static pillarGeo: THREE.BoxGeometry;
@@ -140,7 +142,7 @@ export class AbandonedMansionAssets {
   public static ceilingGeo: THREE.PlaneGeometry;
 
   public static initMaterials() {
-    if (this.floorMat) return;
+    if (this.floorMat && this.ghostFaceMat) return;
 
     const floorTex = AbandonedMansionTextures.getWoodFloorTexture();
     floorTex.repeat.set(2, 2);
@@ -295,6 +297,20 @@ export class AbandonedMansionAssets {
 
     this.eyeRedMat = new THREE.MeshBasicMaterial({ color: 0xff1122 });
     this.eyeCyanMat = new THREE.MeshBasicMaterial({ color: 0x00ffcc });
+
+    const ghostFaceTexture = new THREE.TextureLoader().load(ghostFaceImg, (tex) => {
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.needsUpdate = true;
+      if (this.ghostFaceMat) {
+        this.ghostFaceMat.needsUpdate = true;
+      }
+    });
+    ghostFaceTexture.colorSpace = THREE.SRGBColorSpace;
+    this.ghostFaceMat = new THREE.MeshBasicMaterial({
+      map: ghostFaceTexture,
+      side: THREE.DoubleSide,
+      transparent: false,
+    });
 
     this.ghostHandMatWhite = new THREE.MeshStandardMaterial({
       color: 0xb5bcbf,
@@ -759,26 +775,42 @@ export class AbandonedMansionAssets {
     body.position.y = 0.9;
     group.add(body);
 
-    // Head with dark long hair draped forward
+    // Dark hair flowing behind head and draping over shoulders (framing the face from back and sides)
     const headMat = isWhite ? this.ironMat : this.stoneMat;
-    const head = new THREE.Mesh(this.getSphere(0.19, 10, 10), headMat);
-    head.position.y = 1.76;
-    group.add(head);
-
-    // Long hair mesh falling over face and shoulders
-    const hair = new THREE.Mesh(this.getCylinder(0.2, 0.32, 1.05, 8), headMat);
-    hair.position.set(0, 1.4, 0.04);
+    const hair = new THREE.Mesh(this.getCylinder(0.24, 0.38, 1.15, 8), headMat);
+    hair.position.set(0, 1.40, -0.16); // Placed at the back so the front face photo is completely unobscured!
     group.add(hair);
 
-    // Eerie glowing pinpoint eyes hidden in hair (Crimson red vs Ghostly cyan)
-    const eyeMat = isWhite ? this.eyeRedMat : this.eyeCyanMat;
-    const eyeGeo = this.getSphere(0.02, 6, 6);
-    const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
-    eyeL.position.set(-0.065, 1.74, 0.18);
-    const eyeR = new THREE.Mesh(eyeGeo, eyeMat);
-    eyeR.position.set(0.065, 1.74, 0.18);
-    group.add(eyeL);
-    group.add(eyeR);
+    // Dark head backing sphere behind the face
+    const headBacking = new THREE.Mesh(this.getSphere(0.22, 10, 10), headMat);
+    headBacking.position.set(0, 1.76, -0.05);
+    group.add(headBacking);
+
+    // Terrifying user photo attached prominently directly to the ghost's front face!
+    // Large, crystal-clear, self-illuminated face mesh so it glares brightly in the dark corridors
+    const faceGeo = this.getPlane(0.55, 0.64);
+    const faceMesh = new THREE.Mesh(faceGeo, this.ghostFaceMat);
+    faceMesh.position.set(0, 1.76, 0.22);
+    faceMesh.name = 'ghost_terrifying_face';
+    group.add(faceMesh);
+
+    // 3D Angled Side Cheeks to give the photo 3D depth and visibility from side angles
+    const cheekGeo = this.getPlane(0.22, 0.64);
+    const cheekLeft = new THREE.Mesh(cheekGeo, this.ghostFaceMat);
+    cheekLeft.position.set(-0.25, 1.76, 0.13);
+    cheekLeft.rotation.y = 0.65;
+    group.add(cheekLeft);
+
+    const cheekRight = new THREE.Mesh(cheekGeo, this.ghostFaceMat);
+    cheekRight.position.set(0.25, 1.76, 0.13);
+    cheekRight.rotation.y = -0.65;
+    group.add(cheekRight);
+
+    // Subtle sinister red point light centered right in front of the face
+    const faceAura = new THREE.PointLight(0xff1818, 0.9, 3.5);
+    faceAura.position.set(0, 1.76, 0.32);
+    faceAura.name = 'ghost_aura';
+    group.add(faceAura);
 
     // Ghostly outstretched arms reaching forward
     const armGeo = this.getCylinder(0.04, 0.03, 0.65, 6);
