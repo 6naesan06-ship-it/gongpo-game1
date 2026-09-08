@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { JumpscareEvent } from '../types';
 import ghostFaceImg from '../assets/images/scary_ghost_face_1788500355128.jpg';
-import shadowDemonImg from '../assets/images/jumpscare_shadow_demon_1788411419426.jpg';
+import grimReaperSpecterImg from '../assets/images/grim_reaper_specter.jpg';
 import { mazeAudio } from '../audio/mazeHorrorAudio';
 
 interface JumpscareOverlayProps {
@@ -105,7 +105,8 @@ export const JumpscareOverlay: React.FC<JumpscareOverlayProps> = ({ event, onCom
   if (!visible || !event) return null;
 
   const isBoss = event.variant === 'boss_demon';
-  const selectedImage = isBoss ? shadowDemonImg : ghostFaceImg;
+  const isSpecterOrBoss = event.variant === 'shadow_specter' || isBoss;
+  const selectedImage = isSpecterOrBoss ? grimReaperSpecterImg : ghostFaceImg;
 
   return (
     <div

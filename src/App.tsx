@@ -29,7 +29,8 @@ export default function App() {
   // Player Stats
   const [sanity, setSanity] = useState<number>(100);
   const [maxSanity, setMaxSanity] = useState<number>(100);
-  const [stamina, setStamina] = useState<number>(100);
+  const [stamina, setStamina] = useState<number>(200);
+  const [maxStamina, setMaxStamina] = useState<number>(200);
   const [battery, setBattery] = useState<number>(100);
   const [lightMode, setLightMode] = useState<'flashlight' | 'lantern' | 'off'>('flashlight');
   const [depthMeters, setDepthMeters] = useState<number>(0);
@@ -63,12 +64,15 @@ export default function App() {
   ]);
   const [activeSlotIndex, setActiveSlotIndex] = useState<number>(0);
   const [exorcisedGhostCount, setExorcisedGhostCount] = useState<number>(0);
+  const [extraLives, setExtraLives] = useState<number>(2);
+  const [isInvincible, setIsInvincible] = useState<boolean>(false);
   const [escapeModal, setEscapeModal] = useState<{
-    method: 'relics' | 'kills';
+    method: 'relics' | 'kills' | 'boss';
     exorcisedCount: number;
     depthMeters: number;
     roomsExplored: number;
     relicsCount: number;
+    bossDefeated?: boolean;
   } | null>(null);
 
   // Sound & Settings
@@ -141,21 +145,24 @@ export default function App() {
         setInventory([...engineRef.current.inventory]);
         setActiveSlotIndex(engineRef.current.activeSlotIndex);
         setExorcisedGhostCount(engineRef.current.exorcisedGhostCount);
+        setExtraLives(engineRef.current.extraLives);
+        setIsInvincible(engineRef.current.isInvincible);
 
-        // Check Victory escape condition
+        // Check Victory escape condition (Only Eoduksini Boss defeat escapes!)
         if (engineRef.current.isEscaped && !escapeModal) {
           engineRef.current.releasePointerLock();
           setEscapeModal({
-            method: engineRef.current.escapeMethod || 'relics',
+            method: 'boss',
             exorcisedCount: engineRef.current.exorcisedGhostCount,
             depthMeters: engineRef.current.depthMeters,
             roomsExplored: engineRef.current.roomsExplored.size,
-            relicsCount: engineRef.current.collectedRelics.length
+            relicsCount: engineRef.current.collectedRelics.length,
+            bossDefeated: true,
           });
         }
 
-        // Check Defeat condition
-        if (engineRef.current.sanity <= 0 && !engineRef.current.isEscaped) {
+        // Check Defeat condition: Only triggers when player has exhausted all extra lives (0 lives left) and sanity reaches 0!
+        if (engineRef.current.sanity <= 0 && engineRef.current.extraLives <= 0 && !engineRef.current.isEscaped) {
           setGameStatus('game_over');
           mazeAudio.playHorrorStinger();
         }
@@ -194,15 +201,25 @@ export default function App() {
     mazeAudio.resumeAudio();
     mazeAudio.startAmbient();
     setSanity(100);
-    setStamina(100);
+    setMaxSanity(100);
+    setStamina(200);
+    setMaxStamina(200);
     setBattery(100);
     setDepthMeters(0);
     setRoomsExplored(1);
     setCollectedRelics([]);
     setExorcisedGhostCount(0);
+    setExtraLives(2);
+    setIsInvincible(false);
     setEscapeModal(null);
     setCurrentJumpscare(null);
     setGameStatus('playing');
+  };
+
+  const handleChallengeBoss = () => {
+    if (engineRef.current) {
+      engineRef.current.transitionToBossFight();
+    }
   };
 
   const handleRestart = () => {
@@ -295,6 +312,7 @@ export default function App() {
           sanity={sanity}
           maxSanity={maxSanity}
           stamina={stamina}
+          maxStamina={maxStamina}
           battery={battery}
           lightMode={lightMode}
           depthMeters={depthMeters}
@@ -307,6 +325,9 @@ export default function App() {
           onNextSlot={handleNextSlot}
           onUseActiveItem={handleUseActiveItem}
           exorcisedGhostCount={exorcisedGhostCount}
+          extraLives={extraLives}
+          isInvincible={isInvincible}
+          onChallengeBoss={handleChallengeBoss}
           escapeModal={escapeModal}
           onRestart={handleRestart}
           hoveredTarget={hoveredTarget}
@@ -351,17 +372,17 @@ export default function App() {
             {/* Atmosphere Lore & Rules Box */}
             <div className="w-full my-6 p-4 rounded-2xl bg-neutral-900/80 border border-neutral-800 text-left text-xs leading-relaxed text-neutral-300 space-y-2.5 font-mono">
               <p className="text-amber-400 font-semibold flex items-center gap-1.5">
-                <Flame className="w-4 h-4 text-amber-500" /> [생존 및 탐험 지침]
+                <Flame className="w-4 h-4 text-amber-500" /> [생존 및 탈출 규칙]
               </p>
-              <p>• 끝없이 이어지는 낡은 한옥 폐옥의 방과 썩은 마룻바닥 복도를 탐험합니다.</p>
-              <p>• <strong>[WASD]</strong>로 이동하며 <strong>[E]</strong>로 촛불, 부적, 옹기 항아리, 목각탈을 조사하세요.</p>
-              <p>
-                • <strong>제사상과 촛불:</strong> 타오르는 촛불을 조사하면 깎여나간 <strong>정신력(SAN)</strong>을 회복합니다.
+              <p>• <strong>유일한 탈출 조건:</strong> 오직 어둠의 거대 군주 <strong>[어둑시니]</strong>를 쓰러뜨려야만 폐가의 결계가 깨지고 탈출할 수 있습니다.</p>
+              <p className="text-amber-300">
+                • <strong>어둑시니 결계 진입 조건:</strong> <strong>[유물 20종 전수 수습]</strong> + <strong>[구천응원 봉인부적]</strong> + <strong>[사인참사검]</strong> 3가지를 모두 갖추어야만 어둑시니의 결계가 열립니다!
               </p>
-              <p>
-                • <strong className="text-rose-400">원혼의 기척:</strong> 어둠 속 원혼이 추격해오면 거리를 벌리거나, 숨겨진 퇴마 도구를 찾아 맞서세요.
+              <p className="text-rose-300">
+                • <strong>제자리 부활 (목숨 2개 추가):</strong> 귀신에게 잡히더라도 <strong>총 3개의 목숨(제자리 부활 2회)</strong>이 주어집니다! 부활 시 정신력/스태미나 완충 및 <strong>귀신이 20m 이상 멀리 튕겨져 나갑니다.</strong>
               </p>
-              <p>• 하단 인벤토리 슬롯을 <strong>[← / → 방향키]</strong> 또는 <strong>[1, 2, 3 키]</strong>로 전환하여 장비를 사용할 수 있습니다.</p>
+              <p>• <strong>체력 증강 (스태미나 200):</strong> 스태미나가 200으로 확장되어 원혼의 추격을 피해 더 오래 질주할 수 있습니다.</p>
+              <p>• <strong>제사상과 촛불:</strong> 타오르는 촛불을 조사([E])하면 깎여나간 정신력(SAN)을 회복합니다.</p>
             </div>
 
             {/* Controls Guide Table */}

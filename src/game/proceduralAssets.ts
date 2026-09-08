@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { AbandonedMansionTextures } from './textures';
 import ghostFaceImg from '../assets/images/scary_ghost_face_1788500355128.jpg';
+import grimReaperSpecterImg from '../assets/images/grim_reaper_specter.jpg';
 
 export class AbandonedMansionAssets {
   // Global Geometry Cache: guarantees zero allocations during maze traversal
@@ -133,6 +134,7 @@ export class AbandonedMansionAssets {
   public static cobwebHangingMat: THREE.MeshStandardMaterial;
   public static peelingPaperMat: THREE.MeshStandardMaterial;
   public static ghostFaceMat: THREE.MeshBasicMaterial;
+  public static specterFaceMat: THREE.MeshBasicMaterial;
 
   // Reusable Core Geometries
   public static pillarGeo: THREE.BoxGeometry;
@@ -142,7 +144,7 @@ export class AbandonedMansionAssets {
   public static ceilingGeo: THREE.PlaneGeometry;
 
   public static initMaterials() {
-    if (this.floorMat && this.ghostFaceMat) return;
+    if (this.floorMat && this.ghostFaceMat && this.specterFaceMat) return;
 
     const floorTex = AbandonedMansionTextures.getWoodFloorTexture();
     floorTex.repeat.set(2, 2);
@@ -308,6 +310,20 @@ export class AbandonedMansionAssets {
     ghostFaceTexture.colorSpace = THREE.SRGBColorSpace;
     this.ghostFaceMat = new THREE.MeshBasicMaterial({
       map: ghostFaceTexture,
+      side: THREE.DoubleSide,
+      transparent: false,
+    });
+
+    const specterFaceTexture = new THREE.TextureLoader().load(grimReaperSpecterImg, (tex) => {
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.needsUpdate = true;
+      if (this.specterFaceMat) {
+        this.specterFaceMat.needsUpdate = true;
+      }
+    });
+    specterFaceTexture.colorSpace = THREE.SRGBColorSpace;
+    this.specterFaceMat = new THREE.MeshBasicMaterial({
+      map: specterFaceTexture,
       side: THREE.DoubleSide,
       transparent: false,
     });
@@ -769,16 +785,17 @@ export class AbandonedMansionAssets {
 
     const isWhite = variant === 'white_robe';
     const robeMat = isWhite ? this.robeWhiteMat : this.robeBlackMat;
+    const faceMaterial = isWhite ? this.ghostFaceMat : this.specterFaceMat;
 
     const bodyGeo = this.getCone(0.48, 1.8, 10);
     const body = new THREE.Mesh(bodyGeo, robeMat);
     body.position.y = 0.9;
     group.add(body);
 
-    // Dark hair flowing behind head and draping over shoulders (framing the face from back and sides)
+    // Dark hair / shroud flowing behind head
     const headMat = isWhite ? this.ironMat : this.stoneMat;
     const hair = new THREE.Mesh(this.getCylinder(0.24, 0.38, 1.15, 8), headMat);
-    hair.position.set(0, 1.40, -0.16); // Placed at the back so the front face photo is completely unobscured!
+    hair.position.set(0, 1.40, -0.16);
     group.add(hair);
 
     // Dark head backing sphere behind the face
@@ -786,28 +803,45 @@ export class AbandonedMansionAssets {
     headBacking.position.set(0, 1.76, -0.05);
     group.add(headBacking);
 
-    // Terrifying user photo attached prominently directly to the ghost's front face!
+    // If Korean Grim Reaper / Shadow Specter (저승사자 망령), equip traditional Joseon Black Gat (흑립)
+    if (!isWhite) {
+      // Gat Brim (저승사자의 넓고 서늘한 흑립 챙)
+      const gatBrimGeo = this.getCylinder(0.56, 0.56, 0.025, 16);
+      const gatBrim = new THREE.Mesh(gatBrimGeo, this.robeBlackMat);
+      gatBrim.position.set(0, 2.06, 0.03);
+      gatBrim.name = 'grim_reaper_gat_brim';
+      group.add(gatBrim);
+
+      // Gat Crown (높게 솟은 총모자 대우)
+      const gatCrownGeo = this.getCylinder(0.21, 0.25, 0.38, 12);
+      const gatCrown = new THREE.Mesh(gatCrownGeo, this.robeBlackMat);
+      gatCrown.position.set(0, 2.25, 0.03);
+      gatCrown.name = 'grim_reaper_gat_crown';
+      group.add(gatCrown);
+    }
+
+    // Prominent Face Mesh with user-requested photo attached directly to the face!
     // Large, crystal-clear, self-illuminated face mesh so it glares brightly in the dark corridors
     const faceGeo = this.getPlane(0.55, 0.64);
-    const faceMesh = new THREE.Mesh(faceGeo, this.ghostFaceMat);
+    const faceMesh = new THREE.Mesh(faceGeo, faceMaterial);
     faceMesh.position.set(0, 1.76, 0.22);
-    faceMesh.name = 'ghost_terrifying_face';
+    faceMesh.name = isWhite ? 'ghost_terrifying_face' : 'specter_grim_reaper_face';
     group.add(faceMesh);
 
     // 3D Angled Side Cheeks to give the photo 3D depth and visibility from side angles
     const cheekGeo = this.getPlane(0.22, 0.64);
-    const cheekLeft = new THREE.Mesh(cheekGeo, this.ghostFaceMat);
+    const cheekLeft = new THREE.Mesh(cheekGeo, faceMaterial);
     cheekLeft.position.set(-0.25, 1.76, 0.13);
     cheekLeft.rotation.y = 0.65;
     group.add(cheekLeft);
 
-    const cheekRight = new THREE.Mesh(cheekGeo, this.ghostFaceMat);
+    const cheekRight = new THREE.Mesh(cheekGeo, faceMaterial);
     cheekRight.position.set(0.25, 1.76, 0.13);
     cheekRight.rotation.y = -0.65;
     group.add(cheekRight);
 
-    // Subtle sinister red point light centered right in front of the face
-    const faceAura = new THREE.PointLight(0xff1818, 0.9, 3.5);
+    // Sinister aura light (Bright crimson for maiden, deep blood-curdling crimson/spectral for Grim Reaper specter)
+    const faceAura = new THREE.PointLight(isWhite ? 0xff1818 : 0xaa1133, 1.1, 3.8);
     faceAura.position.set(0, 1.76, 0.32);
     faceAura.name = 'ghost_aura';
     group.add(faceAura);
@@ -1415,6 +1449,13 @@ export class AbandonedMansionAssets {
     eyeR.position.set(0.45, 0.15, 0.82);
     eyeR.name = 'boss_eye_right';
     headGroup.add(eyeR);
+
+    // Terrifying Specter Grim Reaper face attached to front of Boss head
+    const bossFaceGeo = this.getPlane(1.75, 1.95);
+    const bossFaceMesh = new THREE.Mesh(bossFaceGeo, this.specterFaceMat);
+    bossFaceMesh.position.set(0, 0.05, 0.825);
+    bossFaceMesh.name = 'boss_specter_face';
+    headGroup.add(bossFaceMesh);
 
     // Eye PointLight (주변을 붉게 물들이는 안광)
     const eyeLight = new THREE.PointLight(0xff1122, 2.5, 18);

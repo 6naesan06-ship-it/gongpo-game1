@@ -26,13 +26,15 @@ import {
   RotateCcw,
   Heart,
   Skull,
-  AlertTriangle
+  AlertTriangle,
+  Lock
 } from 'lucide-react';
 
 interface MazeHUDProps {
   sanity: number;
   maxSanity?: number;
   stamina: number;
+  maxStamina?: number;
   battery: number;
   lightMode: 'flashlight' | 'lantern' | 'off';
   depthMeters: number;
@@ -46,6 +48,10 @@ interface MazeHUDProps {
   onUseActiveItem: () => void;
   exorcisedGhostCount: number;
   bossState: BossState;
+  extraLives?: number;
+  maxExtraLives?: number;
+  isInvincible?: boolean;
+  onChallengeBoss?: () => void;
   escapeModal: {
     method: 'relics' | 'kills' | 'boss';
     exorcisedCount: number;
@@ -78,6 +84,7 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
   sanity,
   maxSanity = 100,
   stamina,
+  maxStamina = 200,
   battery,
   lightMode,
   depthMeters,
@@ -91,6 +98,9 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
   onUseActiveItem,
   exorcisedGhostCount,
   bossState,
+  extraLives = 2,
+  isInvincible = false,
+  onChallengeBoss,
   escapeModal,
   onRestart,
   hoveredTarget,
@@ -134,6 +144,9 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
   const isLowSanity = sanityPercent <= 30;
   const lowSanitySeverity = isLowSanity ? Math.min(1, Math.max(0, (30 - sanityPercent) / 30)) : 0;
   const isBossFight = bossState && bossState.active;
+  const hasTalisman = inventory.some((i) => i.id === 'sealing_talisman' && i.unlocked);
+  const hasSword = inventory.some((i) => (i.id === 'exorcism_sword' || i.id === 'sain_sword') && i.unlocked);
+  const canChallengeBoss = collectedRelics.length >= 20 && hasTalisman && hasSword;
 
   // ESC / Enter / Space / E 키로 조사창 신속 닫기
   useEffect(() => {
@@ -247,6 +260,50 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
                 </div>
               </div>
             </div>
+
+            {/* Lives & Resurrection Indicator (목숨 2개 추가: 총 3목숨, 제자리 부활 2회, 귀신 20m 격퇴) */}
+            <div
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-2xl backdrop-blur-md shadow-lg border transition-all duration-300 font-mono ${
+                isInvincible
+                  ? 'bg-amber-950/90 border-amber-400 ring-2 ring-amber-400/50 shadow-[0_0_15px_rgba(245,158,11,0.5)] animate-pulse'
+                  : extraLives === 0
+                  ? 'bg-red-950/80 border-red-700/80 text-red-300'
+                  : 'bg-neutral-950/85 border-neutral-800 text-neutral-200'
+              }`}
+            >
+              <ShieldAlert className={`w-4 h-4 ${extraLives === 0 ? 'text-red-500' : 'text-rose-500'}`} />
+              <span className="text-[11px] text-neutral-400">목숨:</span>
+              <div className="flex items-center gap-1.5">
+                {[0, 1, 2].map((idx) => {
+                  const hasLife = idx <= extraLives;
+                  return (
+                    <Heart
+                      key={idx}
+                      className={`w-3.5 h-3.5 transition-all duration-300 ${
+                        hasLife
+                          ? 'text-rose-500 fill-rose-500 drop-shadow-[0_0_6px_rgba(244,63,94,0.9)]'
+                          : 'text-neutral-700 fill-neutral-900/40'
+                      }`}
+                    />
+                  );
+                })}
+              </div>
+              <span
+                className={`text-[11px] font-bold ${
+                  isInvincible
+                    ? 'text-amber-300 animate-pulse'
+                    : extraLives > 0
+                    ? 'text-rose-400'
+                    : 'text-red-400'
+                }`}
+              >
+                {isInvincible
+                  ? '🛡️ 무적 가호 (귀신 20m 격퇴됨)'
+                  : extraLives > 0
+                  ? `(부활 ${extraLives}회 가능)`
+                  : '⚠️ 마지막 목숨!'}
+              </span>
+            </div>
           </div>
 
           {/* Center: Antique Compass HUD (Hidden when Boss fight is active to show boss bar) */}
@@ -308,6 +365,41 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
                 {collectedRelics.length}/20
               </span>
             </button>
+
+            {/* Boss Challenge / Sealed Indicator Button */}
+            {!isBossFight && onChallengeBoss && (
+              <button
+                onClick={onChallengeBoss}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-2xl backdrop-blur-md text-xs font-mono transition cursor-pointer active:scale-95 ${
+                  canChallengeBoss
+                    ? 'bg-gradient-to-r from-rose-600 via-amber-600 to-rose-600 hover:from-rose-500 hover:to-amber-500 border border-amber-300 text-white shadow-[0_0_20px_rgba(244,63,94,0.7)] animate-pulse'
+                    : 'bg-neutral-950/85 hover:bg-neutral-900 border border-neutral-800 hover:border-amber-700/60 text-neutral-400 hover:text-amber-300 shadow-md'
+                }`}
+                title={
+                  canChallengeBoss
+                    ? '3대 신물(유물 20개, 검, 부적) 완비! [어둑시니] 결계로 진입합니다!'
+                    : `어둑시니 결계 봉인 중 (필요: 유물 20개 [${collectedRelics.length}/20], 봉인부적 [${hasTalisman ? '✓' : '✗'}], 사인참사검 [${hasSword ? '✓' : '✗'}])`
+                }
+              >
+                {canChallengeBoss ? (
+                  <>
+                    <Skull className="w-4 h-4 text-amber-200 animate-bounce" />
+                    <span className="hidden sm:inline font-bold text-amber-100">[어둑시니 결계 개방!]</span>
+                    <span className="sm:hidden font-bold text-amber-100">결계진입</span>
+                  </>
+                ) : (
+                  <>
+                    <Lock className="w-3.5 h-3.5 text-neutral-500" />
+                    <span className="hidden lg:inline text-[11px]">
+                      결계봉인 (유물 {collectedRelics.length}/20 · 부적 {hasTalisman ? '✓' : '✗'} · 검 {hasSword ? '✓' : '✗'})
+                    </span>
+                    <span className="lg:hidden text-[11px]">
+                      결계봉인 ({collectedRelics.length}/20)
+                    </span>
+                  </>
+                )}
+              </button>
+            )}
 
             {/* Settings Button */}
             <button
@@ -567,17 +659,17 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
           </div>
 
           {/* Stamina Bar */}
-          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-neutral-950/85 border border-neutral-800 shadow-lg min-w-[150px] ml-auto">
-            <Zap className={`w-3.5 h-3.5 ${stamina < 20 ? 'text-amber-500 animate-pulse' : 'text-cyan-400'}`} />
+          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-neutral-950/85 border border-neutral-800 shadow-lg min-w-[160px] ml-auto">
+            <Zap className={`w-3.5 h-3.5 ${stamina < 40 ? 'text-amber-500 animate-pulse' : 'text-cyan-400'}`} />
             <div className="flex-1">
               <div className="flex justify-between text-[10px] font-mono mb-0.5">
-                <span className="text-neutral-400">체력</span>
-                <span className="text-neutral-200 font-bold">{Math.round(stamina)}%</span>
+                <span className="text-neutral-400">스태미나</span>
+                <span className="text-neutral-200 font-bold">{Math.round(stamina)} / {maxStamina}</span>
               </div>
               <div className="w-full h-1 bg-neutral-900 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-cyan-500 transition-all duration-150"
-                  style={{ width: `${stamina}%` }}
+                  style={{ width: `${Math.min(100, Math.max(0, (stamina / maxStamina) * 100))}%` }}
                 />
               </div>
             </div>
@@ -830,7 +922,7 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 sm:p-6 backdrop-blur-md pointer-events-auto">
           <div className="relative max-w-2xl w-full max-h-[85vh] bg-neutral-950 border border-amber-600/70 rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col text-neutral-200">
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-neutral-800 pb-3 mb-4">
+            <div className="flex items-center justify-between border-b border-neutral-800 pb-3 mb-3">
               <div className="flex items-center gap-2 text-amber-400 font-bold text-lg font-mono">
                 <BookOpen className="w-5 h-5" />
                 <span>수습한 폐옥 유물 도감 ({collectedRelics.length} / 20종 발견)</span>
@@ -841,6 +933,55 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
               >
                 <X className="w-5 h-5" />
               </button>
+            </div>
+
+            {/* 3 Boss Entry Requirements Progress Bar */}
+            <div className="mb-4 p-3.5 rounded-2xl bg-neutral-900/90 border border-neutral-800 font-mono text-xs">
+              <div className="text-amber-400 font-bold mb-2 flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Flame className="w-4 h-4 text-amber-500" />
+                  <span>어둑시니 결계 진입 3대 조건</span>
+                </div>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${
+                  canChallengeBoss
+                    ? 'bg-rose-950 border-rose-600 text-rose-300 animate-pulse'
+                    : 'bg-neutral-950 border-neutral-700 text-neutral-400'
+                }`}>
+                  {canChallengeBoss ? '결계 개방 완료!' : '결계 봉인 중'}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-[11px]">
+                <div className={`p-2.5 rounded-xl border flex flex-col items-center text-center transition ${
+                  collectedRelics.length >= 20
+                    ? 'bg-emerald-950/60 border-emerald-500/80 text-emerald-300'
+                    : 'bg-neutral-950/80 border-neutral-800 text-neutral-400'
+                }`}>
+                  <span className="font-bold">1. 유물 20종</span>
+                  <span className="text-[10px] mt-0.5 font-semibold">
+                    {collectedRelics.length >= 20 ? '✓ 20개 수습 완료' : `${collectedRelics.length} / 20개`}
+                  </span>
+                </div>
+                <div className={`p-2.5 rounded-xl border flex flex-col items-center text-center transition ${
+                  hasTalisman
+                    ? 'bg-emerald-950/60 border-emerald-500/80 text-emerald-300'
+                    : 'bg-neutral-950/80 border-neutral-800 text-neutral-400'
+                }`}>
+                  <span className="font-bold">2. 봉인부적</span>
+                  <span className="text-[10px] mt-0.5 font-semibold">
+                    {hasTalisman ? '✓ 획득 완료' : '제단실 수색 필요'}
+                  </span>
+                </div>
+                <div className={`p-2.5 rounded-xl border flex flex-col items-center text-center transition ${
+                  hasSword
+                    ? 'bg-emerald-950/60 border-emerald-500/80 text-emerald-300'
+                    : 'bg-neutral-950/80 border-neutral-800 text-neutral-400'
+                }`}>
+                  <span className="font-bold">3. 사인참사검</span>
+                  <span className="text-[10px] mt-0.5 font-semibold">
+                    {hasSword ? '✓ 획득 완료' : '보검대 수색 필요'}
+                  </span>
+                </div>
+              </div>
             </div>
 
             {/* Codex List */}
@@ -895,23 +1036,15 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
             </div>
 
             <h2 className="text-2xl sm:text-3xl font-extrabold text-amber-300 font-mono">
-              {escapeModal.method === 'boss' || escapeModal.bossDefeated
-                ? '[어둑시니 토벌 대성공: 결계 완전 소멸]'
-                : '[폐가 탈출 성공: 미로의 결계 해제]'}
+              [어둑시니 토벌 대성공: 결계 완전 해제 및 미로 탈출]
             </h2>
             <p className="text-xs font-mono text-amber-400/90 mt-1">
-              {escapeModal.method === 'boss' || escapeModal.bossDefeated
-                ? '20개의 신성한 유물을 공명시키고 사인참사검(四寅斬邪劍)으로 거대 요괴 어둑시니를 15연격으로 베어 소멸시켰습니다!'
-                : escapeModal.method === 'relics'
-                ? '신성한 퇴마 신물을 수습하여 미로의 저주를 정화했습니다!'
-                : '백여 위의 원혼을 모조리 베어 퇴마하여 폐옥의 결계를 완벽하게 정화 파괴했습니다!'}
+              어둠의 거대 군주 어둑시니를 사인참사검(四寅斬邪劍)으로 베어 영원히 소멸시키고 미로를 탈출했습니다!
             </p>
 
             <div className="my-5 p-4 rounded-2xl bg-neutral-900/80 border border-neutral-800 text-xs text-neutral-300 font-mono leading-relaxed text-left space-y-2">
               <p className="text-amber-300 font-semibold">
-                {escapeModal.method === 'boss' || escapeModal.bossDefeated
-                  ? '어둑시니의 거대한 그림자가 사인참사검의 신성한 칼날에 조각나며 허공으로 흩어졌습니다. 폐가 전체를 감싸고 있던 흑야의 저주가 산산이 부서지며 푸른 아침 햇살이 폐옥을 비춥니다.'
-                  : '새벽녘의 여명과 함께 폐가의 뒤틀린 시공간이 본래 모습을 되찾았습니다. 무한히 반복되던 낡은 회랑과 방문들이 열리며 바깥세상으로의 탈출로가 열렸습니다.'}
+                어둑시니의 거대한 그림자가 흩어지며 끝없이 왜곡되던 1978년 폐가의 결계가 완전히 산산조각 났습니다. 마침내 닫혀 있던 폐옥의 대문이 활짝 열리고 따스한 새벽 여명이 당신의 발걸음을 비춥니다.
               </p>
               <div className="grid grid-cols-2 gap-2 pt-2 border-t border-neutral-800 text-[11px]">
                 <div>• 최종 탐험 심도: <span className="text-amber-400 font-bold">{escapeModal.depthMeters}m</span></div>

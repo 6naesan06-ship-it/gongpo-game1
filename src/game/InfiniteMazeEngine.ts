@@ -64,7 +64,8 @@ export class InfiniteMazeEngine {
   public playerYaw: number = 0;
   public playerPitch: number = 0;
   public isSprinting: boolean = false;
-  public stamina: number = 100;
+  public stamina: number = 200;
+  public maxStamina: number = 200;
   public sanity: number = 100;
   public maxSanity: number = 100;
   public battery: number = 100;
@@ -105,7 +106,13 @@ export class InfiniteMazeEngine {
   public hasTalisman: boolean = false;
   public hasSword: boolean = false;
   public isEscaped: boolean = false;
-  public escapeMethod: 'relics' | 'kills' | 'boss' = 'relics';
+  public escapeMethod: 'relics' | 'kills' | 'boss' = 'boss';
+
+  // Player Lives & Resurrection State (목숨 2개 추가: 총 3목숨 / 제자리 부활 2회)
+  public extraLives: number = 2;
+  public maxExtraLives: number = 2;
+  public isInvincible: boolean = false;
+  public invincibilityTimer: number = 0;
 
   // Boss Battle State: Eoduksini (어둑시니 보스전)
   public isBossFightActive: boolean = false;
@@ -363,9 +370,9 @@ export class InfiniteMazeEngine {
       bobOffset: number;
     }[] = [
       { id: 'ghost_white_maiden', name: '소복 처녀귀신', variant: 'white_robe', gx: 1, gz: 1, speed: 1.30, bobOffset: 0 },
-      { id: 'ghost_shadow_specter', name: '저승 그림자 망령', variant: 'shadow_specter', gx: -1, gz: -1, speed: 1.15, bobOffset: 1.0 },
+      { id: 'ghost_shadow_specter', name: '저승사자 망령', variant: 'shadow_specter', gx: -1, gz: -1, speed: 1.15, bobOffset: 1.0 },
       { id: 'ghost_water_spirit', name: '원한 서린 물귀신', variant: 'white_robe', gx: 1, gz: -1, speed: 1.25, bobOffset: 2.1 },
-      { id: 'ghost_unsealed_evil', name: '봉인 풀린 악령', variant: 'shadow_specter', gx: -1, gz: 1, speed: 1.20, bobOffset: 3.2 },
+      { id: 'ghost_unsealed_evil', name: '저승 악령', variant: 'shadow_specter', gx: -1, gz: 1, speed: 1.20, bobOffset: 3.2 },
     ];
 
     for (const cfg of ghostConfigs) {
@@ -1173,11 +1180,11 @@ export class InfiniteMazeEngine {
 
     if (this.isBossFightActive) {
       // 보스전 중 무한 스태미나
-      this.stamina = 100;
+      this.stamina = this.maxStamina;
     } else if (isSprint && (keyW || keyS || keyA || keyD || this.virtualMoveVector.y !== 0)) {
       this.stamina = Math.max(0, this.stamina - delta * 22);
     } else {
-      this.stamina = Math.min(100, this.stamina + delta * 15);
+      this.stamina = Math.min(this.maxStamina, this.stamina + delta * 24);
     }
 
     // Direction vector from keyboard + virtual joystick
@@ -1345,6 +1352,139 @@ export class InfiniteMazeEngine {
 
     // Continuously simulate atmospheric dust and cold ground mist particles
     this.updateAtmosphericParticles(delta);
+
+    // Invincibility countdown
+    if (this.invincibilityTimer > 0) {
+      this.invincibilityTimer -= delta;
+      if (this.invincibilityTimer <= 0) {
+        this.isInvincible = false;
+        this.invincibilityTimer = 0;
+      }
+    }
+
+    // Safety revive check: if sanity drops to 0 and extraLives > 0, immediately revive on the spot!
+    if (this.sanity <= 0 && !this.isEscaped) {
+      if (this.extraLives > 0) {
+        this.revivePlayer();
+      }
+    }
+  }
+
+  // Push a ghost away by at least 20 meters from the player
+  public pushGhostFarAway(ghost: ActiveGhost, minDistance: number = 22.0) {
+    const pushDir = new THREE.Vector3().subVectors(ghost.pos, this.playerPos);
+    pushDir.y = 0;
+    if (pushDir.length() < 0.1) {
+      pushDir.set(Math.random() - 0.5, 0, Math.random() - 0.5);
+    }
+    pushDir.normalize();
+
+    let currX = ghost.pos.x;
+    let currZ = ghost.pos.z;
+
+    // Step outward along push direction
+    for (let step = 0; step < 50; step++) {
+      const stepTargetX = currX + pushDir.x * 0.5;
+      const stepTargetZ = currZ + pushDir.z * 0.5;
+      const res = this.resolveGhostPosition(currX, currZ, stepTargetX, stepTargetZ);
+      currX = res.x;
+      currZ = res.z;
+      if (Math.hypot(currX - this.playerPos.x, currZ - this.playerPos.z) >= minDistance) {
+        break;
+      }
+    }
+
+    // Guarantee that distance is at least 20 meters!
+    const currentDist = Math.hypot(currX - this.playerPos.x, currZ - this.playerPos.z);
+    if (currentDist < 20.0) {
+      const baseAngle = Math.atan2(pushDir.z, pushDir.x);
+      for (let i = 0; i < 16; i++) {
+        const testAngle = baseAngle + (i % 2 === 0 ? 1 : -1) * Math.floor(i / 2) * (Math.PI / 8);
+        const testDist = minDistance + (i % 3) * 2.0;
+        const testX = this.playerPos.x + Math.cos(testAngle) * testDist;
+        const testZ = this.playerPos.z + Math.sin(testAngle) * testDist;
+        const resolved = this.resolveGhostPosition(testX, testZ, testX + 0.1, testZ + 0.1);
+        if (Math.hypot(resolved.x - this.playerPos.x, resolved.z - this.playerPos.z) >= 20.0) {
+          currX = resolved.x;
+          currZ = resolved.z;
+          break;
+        }
+      }
+    }
+
+    ghost.pos.set(currX, 0, currZ);
+    ghost.targetPos.copy(ghost.pos);
+    ghost.mesh.position.set(currX, 0, currZ);
+    ghost.attackCooldown = 8.0; // 8초 동안 재공격 금지
+    ghost.wanderTimer = 6.0;
+    ghost.state = 'wandering';
+  }
+
+  // Revive player on the spot, restore sanity & stamina, and push ghosts 20m+ away!
+  public revivePlayer(triggeringGhost?: ActiveGhost) {
+    if (this.extraLives <= 0) return;
+
+    this.extraLives--;
+    this.sanity = this.maxSanity; // 그 자리에서 정신력 100% 완전 회복!
+    this.stamina = this.maxStamina; // 스태미나 200 완전 충전!
+    this.isInvincible = true;
+    this.invincibilityTimer = 4.5; // 4.5초간 성스러운 가호 무적 결계 부여
+
+    // Audio: Holy resurrection & talisman chant
+    mazeAudio.playItemAcquire();
+    mazeAudio.playTalismanExorcism();
+
+    // Visual: Divine burst of holy golden light on viewmodel / surrounding area
+    if (this.vmSwordLight) {
+      this.vmSwordLight.color.setHex(0xffdd44);
+      this.vmSwordLight.intensity = 6.5;
+      setTimeout(() => {
+        if (this.vmSwordLight) {
+          this.vmSwordLight.color.setHex(0x55ccff);
+          this.vmSwordLight.intensity = 2.6;
+        }
+      }, 1600);
+    }
+
+    // Push back the triggering ghost by 20+ meters
+    if (triggeringGhost) {
+      this.pushGhostFarAway(triggeringGhost, 22.5);
+    }
+
+    // Also push back all other ghosts within 18 meters by 20+ meters
+    this.dynamicGhosts.forEach((g) => {
+      if (g !== triggeringGhost) {
+        const d = g.pos.distanceTo(this.playerPos);
+        if (d < 18.0) {
+          this.pushGhostFarAway(g, 22.0);
+        }
+      }
+    });
+
+    // If in boss fight, blast boss backwards 20 meters and stagger him!
+    if (this.isBossFightActive && this.bossMesh) {
+      const bossDir = new THREE.Vector3().subVectors(this.bossPos, this.playerPos).setY(0);
+      if (bossDir.length() < 0.1) bossDir.set(0, 0, -1);
+      bossDir.normalize();
+      this.bossPos.addScaledVector(bossDir, 21.0);
+      this.bossMesh.position.copy(this.bossPos);
+      this.bossState.isStaggered = true;
+      this.bossStaggerTimer = 4.0;
+      this.bossState.isInvulnerable = false;
+      this.bossState.attackWarning = '⚡ [신령의 천벌!] 부활의 성스러운 파동으로 어둑시니가 20m 튕겨져 나가 기절했습니다!';
+    }
+
+    // Haunted Event announcement
+    if (this.onHauntedEvent) {
+      this.onHauntedEvent({
+        id: `revive_${Date.now()}`,
+        type: 'player_revived',
+        message: `[신령의 수호: 제자리 부활!] 원혼에게 붙잡혔으나 영험한 가호로 그 자리에서 되살아났습니다! (남은 목숨: ${this.extraLives}개) 주위 귀신이 20m 밖으로 퇴치되었습니다!`,
+        sanityDrain: 0,
+      });
+    }
+
+    if (this.onStatsUpdate) this.onStatsUpdate();
   }
 
   // Trigger violent ghost jumpscare event with audio screech, camera shake & strobe blackout
@@ -1526,7 +1666,21 @@ export class InfiniteMazeEngine {
           );
         }
         item.description = '(이미 제단에서 신물을 회수했습니다)';
-        this.checkEscapeVictory();
+        // 3대 조건 검사: 유물 20개 + 부적 + 검 모두 모았을 시 어둑시니 결계 진입
+        if (this.canEnterBossFight() && !this.isBossFightActive && !this.isEscaped) {
+          if (this.onHauntedEvent) {
+            this.onHauntedEvent({
+              id: `boss_unlocked_talisman_${Date.now()}`,
+              type: 'barrier_broken',
+              message: '[결계 파천!] 봉인부적을 획득하여 3대 조건(유물 20개, 사인참사검, 봉인부적)을 모두 달성했습니다! 어둠의 군주 [어둑시니]의 결계로 진입합니다!',
+              sanityDrain: 0,
+            });
+          }
+          this.transitionToBossFight();
+          return;
+        } else {
+          this.checkEscapeVictory();
+        }
       }
       if (this.onStatsUpdate) this.onStatsUpdate();
       return;
@@ -1561,7 +1715,21 @@ export class InfiniteMazeEngine {
         );
       }
       item.description = '(보검대의 신성한 진기와 공명 완료)';
-      this.checkEscapeVictory();
+      // 3대 조건 검사: 유물 20개 + 부적 + 검 모두 모았을 시 어둑시니 결계 진입
+      if (this.canEnterBossFight() && !this.isBossFightActive && !this.isEscaped) {
+        if (this.onHauntedEvent) {
+          this.onHauntedEvent({
+            id: `boss_unlocked_sword_${Date.now()}`,
+            type: 'barrier_broken',
+            message: '[결계 파천!] 사인참사검을 뽑아 3대 조건(유물 20개, 사인참사검, 봉인부적)을 모두 달성했습니다! 어둠의 군주 [어둑시니]의 결계로 진입합니다!',
+            sanityDrain: 0,
+          });
+        }
+        this.transitionToBossFight();
+        return;
+      } else {
+        this.checkEscapeVictory();
+      }
       if (this.onStatsUpdate) this.onStatsUpdate();
       return;
     } else if (item.type === 'altar') {
@@ -1593,16 +1761,36 @@ export class InfiniteMazeEngine {
           this.onHauntedEvent({
             id: `relic_anger_${Date.now()}`,
             type: 'ghost_whisper',
-            message: `[원혼의 격노] 유물 [${relic.name}] 수습! 귀신의 이동 속도(+${currentRelics * 10}%)와 감지 범위(+${(currentRelics * 0.9).toFixed(1)}m)가 상승했습니다!`,
+            message: `[원혼의 격노] 유물 [${relic.name}] 수습! (${currentRelics}/20) 귀신의 이동 속도(+${currentRelics * 10}%)와 감지 범위(+${(currentRelics * 0.9).toFixed(1)}m)가 상승했습니다!`,
             sanityDrain: 0,
           });
         }
 
-        // Check 20 relics collection -> Trigger Eoduksini Boss Battle!
-        if (this.collectedRelics.length >= 20 && !this.isBossFightActive && !this.isEscaped) {
+        // Check 20 relics collection AND sword AND talisman -> Trigger Eoduksini Boss Battle!
+        if (this.canEnterBossFight() && !this.isBossFightActive && !this.isEscaped) {
+          if (this.onHauntedEvent) {
+            this.onHauntedEvent({
+              id: `boss_unlocked_relics_${Date.now()}`,
+              type: 'barrier_broken',
+              message: '[결계 파천!] 유물 20개, 사인참사검, 봉인부적을 모두 갖추었습니다! 어둠의 군주 [어둑시니]의 결계가 활짝 열립니다!',
+              sanityDrain: 0,
+            });
+          }
           if (this.onStatsUpdate) this.onStatsUpdate();
           this.transitionToBossFight();
           return;
+        } else if (this.collectedRelics.length >= 20 && (!this.hasSword || !this.hasTalisman)) {
+          const missing: string[] = [];
+          if (!this.hasTalisman) missing.push('구천응원 봉인부적');
+          if (!this.hasSword) missing.push('사인참사검');
+          if (this.onHauntedEvent) {
+            this.onHauntedEvent({
+              id: `relics_20_need_weapons_${Date.now()}`,
+              type: 'ghost_whisper',
+              message: `[유물 20종 전수 수습!] 모든 유물을 모았습니다! 하지만 어둑시니 결계에 들어가려면 [${missing.join(', ')}]이(가) 더 필요합니다! 미로를 수색하세요!`,
+              sanityDrain: 0,
+            });
+          }
         }
       }
       if (this.onInspectCallback) {
@@ -1618,15 +1806,46 @@ export class InfiniteMazeEngine {
     if (this.onStatsUpdate) this.onStatsUpdate();
   }
 
-  // Transition into the Boss Arena Realm upon gathering 20 relics
+  // 어둑시니 보스전 진입 조건: 유물 20개 다 모으고 + 검 + 부적 2개 다 모아야만 진입 가능
+  public canEnterBossFight(): boolean {
+    return this.collectedRelics.length >= 20 && this.hasSword && this.hasTalisman;
+  }
+
+  // Transition into the Boss Arena Realm upon gathering 20 relics AND both sacred weapons
   public transitionToBossFight() {
     if (this.isBossFightActive || this.isEscaped) return;
+
+    // 유물 20개 + 검 + 부적 보유 여부 검증
+    if (!this.canEnterBossFight()) {
+      const missing: string[] = [];
+      if (this.collectedRelics.length < 20) {
+        missing.push(`유물 20종 (${this.collectedRelics.length}/20)`);
+      }
+      if (!this.hasTalisman) {
+        missing.push('구천응원 봉인부적');
+      }
+      if (!this.hasSword) {
+        missing.push('사인참사검');
+      }
+
+      mazeAudio.playGhostPresence();
+      if (this.onHauntedEvent) {
+        this.onHauntedEvent({
+          id: `boss_locked_${Date.now()}`,
+          type: 'ghost_whisper',
+          message: `[어둑시니 결계 봉인됨] 결계 진입에 필요한 신물이 부족합니다! (미달 조건: ${missing.join(', ')})`,
+          sanityDrain: 0,
+        });
+      }
+      return;
+    }
+
     this.isBossFightActive = true;
 
-    // 보스전 입장 시 플레이어 정신력 100에서 300으로 대폭 증폭 (보스전 한정) & 스태미나 충전
+    // 보스전 입장 시 플레이어 정신력 100에서 300으로 대폭 증폭 (보스전 한정) & 스태미나 200 완충
     this.maxSanity = 300;
     this.sanity = 300;
-    this.stamina = 100;
+    this.stamina = this.maxStamina;
 
     // Unlock weapons & select Sa-in Sword
     this.inventory[0].unlocked = true;
@@ -2172,7 +2391,7 @@ export class InfiniteMazeEngine {
             this.bossShockwaveMesh.visible = true;
           }
 
-          if (distToPlayer < 6.8) {
+          if (distToPlayer < 6.8 && !this.isInvincible) {
             const dmg = this.bossState.isEnraged ? 25 : 18;
             this.sanity = Math.max(0, this.sanity - dmg);
             if (this.bossJumpscareCooldown <= 0) {
@@ -2194,7 +2413,7 @@ export class InfiniteMazeEngine {
         this.bossPos.z += (toPlayer.z / (distToPlayer || 1)) * rushSpeed * delta;
         this.bossMesh.position.copy(this.bossPos);
 
-        if (distToPlayer < 4.2) {
+        if (distToPlayer < 4.2 && !this.isInvincible) {
           const dmg = this.bossState.isEnraged ? 24 : 16;
           this.sanity = Math.max(0, this.sanity - dmg);
           if (this.bossJumpscareCooldown <= 0) {
@@ -2213,7 +2432,7 @@ export class InfiniteMazeEngine {
         this.bossMesh.position.y = 0.2;
         if (armL) armL.rotation.x = 0.8;
         if (armR) armR.rotation.x = 0.8;
-        if (distToPlayer < 4.5 && this.bossActionTimer < 0.4) {
+        if (distToPlayer < 4.5 && this.bossActionTimer < 0.4 && !this.isInvincible) {
           const dmg = this.bossState.isEnraged ? 26 : 18;
           this.sanity = Math.max(0, this.sanity - dmg);
           if (this.bossJumpscareCooldown <= 0) {
@@ -2237,7 +2456,7 @@ export class InfiniteMazeEngine {
             bolt.position.set(Math.cos(bAngle) * 6.5, 8, Math.sin(bAngle) * 6.5);
           });
         }
-        if (distToPlayer < 5.0 && Math.sin(time * 10) > 0.6) {
+        if (distToPlayer < 5.0 && Math.sin(time * 10) > 0.6 && !this.isInvincible) {
           this.sanity = Math.max(0, this.sanity - 8 * delta);
         }
       }
@@ -2248,7 +2467,7 @@ export class InfiniteMazeEngine {
         this.playerPos.addScaledVector(pullDir, 3.5 * delta);
         this.camera.position.copy(this.playerPos);
 
-        if (this.bossActionTimer <= 0.2 && distToPlayer < 5.2) {
+        if (this.bossActionTimer <= 0.2 && distToPlayer < 5.2 && !this.isInvincible) {
           mazeAudio.playBossSlam();
           this.sanity = Math.max(0, this.sanity - (this.bossState.isEnraged ? 28 : 20));
           mazeAudio.playHeartbeat(150);
@@ -2497,44 +2716,35 @@ export class InfiniteMazeEngine {
 
         // Close contact scare / Jumpscare attack (within 1.6m)
         if (dist < 1.6 && ghost.attackCooldown <= 0) {
+          if (this.isInvincible) {
+            ghost.attackCooldown = 2.0;
+            return;
+          }
           ghost.attackCooldown = 8.0;
-          this.sanity = Math.max(0, this.sanity - 20);
 
           const variant = ghost.variant === 'shadow_specter' ? 'shadow_specter' : 'white_maiden';
           const ghostName = ghost.name || '원혼';
 
           // Trigger terrifying jumpscare (shriek audio, screen strobe, face lunge & camera shake)
-          this.triggerJumpscare(variant, ghostName, 20);
+          this.triggerJumpscare(variant, ghostName, 30);
 
-          // Recoil ghost backwards along path with collision check
-          const recoilDir = new THREE.Vector3().subVectors(ghost.pos, this.playerPos);
-          recoilDir.y = 0;
-          if (recoilDir.length() < 0.05) recoilDir.set(0, 0, 1);
-          recoilDir.normalize();
-
-          let recoilX = ghost.pos.x;
-          let recoilZ = ghost.pos.z;
-          for (let step = 0; step < 6; step++) {
-            const stepTargetX = recoilX + recoilDir.x * 0.4;
-            const stepTargetZ = recoilZ + recoilDir.z * 0.4;
-            const res = this.resolveGhostPosition(recoilX, recoilZ, stepTargetX, stepTargetZ);
-            if (Math.abs(res.x - recoilX) < 0.01 && Math.abs(res.z - recoilZ) < 0.01) {
-              break;
+          // Caught by ghost: If extra lives remain, revive on the spot and push ghost 20m+ away!
+          if (this.extraLives > 0) {
+            this.revivePlayer(ghost);
+          } else {
+            // Fatal capture on last remaining life: drop sanity to 0
+            this.sanity = 0;
+            this.pushGhostFarAway(ghost, 22.0);
+            if (this.onHauntedEvent) {
+              this.onHauntedEvent({
+                id: `ghost_attack_${Date.now()}_${ghost.id}`,
+                type: 'shadow_figure',
+                message: `${ghostName}에게 마지막 남은 목숨을 빼앗겼습니다...`,
+                sanityDrain: 100,
+              });
             }
-            recoilX = res.x;
-            recoilZ = res.z;
           }
-          ghost.pos.set(recoilX, 0, recoilZ);
-          ghost.targetPos.copy(ghost.pos);
-
-          if (this.onHauntedEvent) {
-            this.onHauntedEvent({
-              id: `ghost_attack_${Date.now()}_${ghost.id}`,
-              type: 'shadow_figure',
-              message: `${ghostName}이(가) 덮쳤습니다! 등불이 꺼지고 정신력이 급감합니다! (SAN -20%)`,
-              sanityDrain: 20,
-            });
-          }
+          if (this.onStatsUpdate) this.onStatsUpdate();
         }
       } else {
         // Wandering around origin room/chunk area at slow pacing
@@ -2916,43 +3126,20 @@ export class InfiniteMazeEngine {
     if (this.onStatsUpdate) this.onStatsUpdate();
   }
 
-  // Check Regular Escape Victory conditions
+  // Check Escape Victory conditions
+  // User directive: "기존에 있던 부적이랑 검 얻으면 탈출하는거 삭제하고 귀신 100마리 잡으면 탈출하는거 삭제해줘 오직 어둑시니만 잡아서 탈출할 수 있게"
+  // Defeating the giant boss Eoduksini (어둑시니) is the SOLE escape condition.
   public checkEscapeVictory() {
     if (this.isEscaped) return;
 
-    // Victory Condition 1: Both sacred items collected (봉인부적 + 사인참사검)
-    if (this.hasTalisman && this.hasSword) {
-      this.isEscaped = true;
-      this.escapeMethod = 'relics';
-      mazeAudio.playEscapeVictory();
-      this.releasePointerLock();
-
-      if (this.onEscapeVictory) {
-        this.onEscapeVictory({
-          method: 'relics',
-          exorcisedCount: this.exorcisedGhostCount,
-          depthMeters: this.depthMeters,
-          roomsExplored: this.roomsExplored.size,
-          relicsCount: this.collectedRelics.length,
-        });
-      }
-      return;
-    }
-
-    // Victory Condition 2: Exorcised 10+ roaming ghosts
-    if (this.exorcisedGhostCount >= 10) {
-      this.isEscaped = true;
-      this.escapeMethod = 'kills';
-      mazeAudio.playEscapeVictory();
-      this.releasePointerLock();
-
-      if (this.onEscapeVictory) {
-        this.onEscapeVictory({
-          method: 'kills',
-          exorcisedCount: this.exorcisedGhostCount,
-          depthMeters: this.depthMeters,
-          roomsExplored: this.roomsExplored.size,
-          relicsCount: this.collectedRelics.length,
+    // Notice: Both sacred relics (talisman + sword) collected now trigger weapon resonance to challenge Eoduksini, NOT immediate escape
+    if (this.hasTalisman && this.hasSword && !this.isBossFightActive) {
+      if (this.onHauntedEvent) {
+        this.onHauntedEvent({
+          id: `weapons_resonance_${Date.now()}`,
+          type: 'barrier_broken',
+          message: '[신물 공명!] 봉인부적과 사인참사검이 하나로 공명합니다! 이제 어둠의 군주 [어둑시니]의 결계로 진입하여 토벌할 수 있습니다!',
+          sanityDrain: 0,
         });
       }
     }

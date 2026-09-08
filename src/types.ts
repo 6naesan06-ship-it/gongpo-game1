@@ -33,7 +33,7 @@ export interface JumpscareEvent {
 
 export interface HauntedEvent {
   id: string;
-  type: 'ghost_whisper' | 'flicker' | 'door_creak' | 'talisman_burn' | 'shadow_figure' | 'mask_weep' | 'exorcism_success' | 'item_acquired' | 'barrier_broken';
+  type: 'ghost_whisper' | 'flicker' | 'door_creak' | 'talisman_burn' | 'shadow_figure' | 'mask_weep' | 'exorcism_success' | 'item_acquired' | 'barrier_broken' | 'player_revived';
   message: string;
   sanityDrain: number;
 }
@@ -65,7 +65,8 @@ export interface EscapeVictoryData {
 export interface PlayerStats {
   sanity: number; // 0 ~ 100 (or 0 ~ 300 in boss fight)
   maxSanity: number; // 100 in maze, 300 in boss fight
-  stamina: number; // 0 ~ 100
+  stamina: number; // 0 ~ 200
+  maxStamina: number; // 200
   battery: number; // 0 ~ 100
   lightMode: 'flashlight' | 'lantern' | 'off';
   depthMeters: number;
@@ -76,6 +77,10 @@ export interface PlayerStats {
   inventory: InventorySlotItem[];
   activeSlotIndex: number;
   exorcisedGhostCount: number;
+  hasTalisman?: boolean;
+  hasSword?: boolean;
+  extraLives?: number;
+  maxExtraLives?: number;
   bossState?: BossState | null;
 }
 
