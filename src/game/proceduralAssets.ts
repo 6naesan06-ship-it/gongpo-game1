@@ -135,6 +135,8 @@ export class AbandonedMansionAssets {
   public static peelingPaperMat: THREE.MeshStandardMaterial;
   public static ghostFaceMat: THREE.MeshBasicMaterial;
   public static specterFaceMat: THREE.MeshBasicMaterial;
+  public static ghostFullBodyMat: THREE.MeshBasicMaterial;
+  public static specterFullBodyMat: THREE.MeshBasicMaterial;
 
   // Reusable Core Geometries
   public static pillarGeo: THREE.BoxGeometry;
@@ -144,7 +146,7 @@ export class AbandonedMansionAssets {
   public static ceilingGeo: THREE.PlaneGeometry;
 
   public static initMaterials() {
-    if (this.floorMat && this.ghostFaceMat && this.specterFaceMat) return;
+    if (this.floorMat && this.ghostFaceMat && this.specterFaceMat && this.ghostFullBodyMat) return;
 
     const floorTex = AbandonedMansionTextures.getWoodFloorTexture();
     floorTex.repeat.set(2, 2);
@@ -304,7 +306,12 @@ export class AbandonedMansionAssets {
     this.eyeRedMat = new THREE.MeshBasicMaterial({ color: 0xff1122 });
     this.eyeCyanMat = new THREE.MeshBasicMaterial({ color: 0x00ffcc });
 
-    const ghostFaceTexture = new THREE.TextureLoader().load(ghostFaceImg, (tex) => {
+    const texLoader = new THREE.TextureLoader();
+
+    // User-specified ghost full-body image URL
+    const userGhostUrl = 'https://i.namu.wiki/i/ZVFvc1kRNqfs5QMUVbp3VMepZA1ei5rGpPbbUvXHKVC3RDu1WCOGN_oVl5ic4JxZt725bMP-pRqt4jYgnVIpudnF4c2PsORN1foVz-P902UYk6w9wNjqs-5f3Rlr0T8gT6dj_wlgfwwDZx4oJPK-vQ.webp';
+
+    const ghostFaceTexture = texLoader.load(ghostFaceImg, (tex) => {
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.needsUpdate = true;
       if (this.ghostFaceMat) {
@@ -318,11 +325,14 @@ export class AbandonedMansionAssets {
       transparent: false,
     });
 
-    const specterFaceTexture = new THREE.TextureLoader().load(grimReaperSpecterImg, (tex) => {
+    const specterFaceTexture = texLoader.load(grimReaperSpecterImg, (tex) => {
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.needsUpdate = true;
       if (this.specterFaceMat) {
         this.specterFaceMat.needsUpdate = true;
+      }
+      if (this.specterFullBodyMat) {
+        this.specterFullBodyMat.needsUpdate = true;
       }
     });
     specterFaceTexture.colorSpace = THREE.SRGBColorSpace;
@@ -330,6 +340,44 @@ export class AbandonedMansionAssets {
       map: specterFaceTexture,
       side: THREE.DoubleSide,
       transparent: false,
+    });
+    this.specterFullBodyMat = new THREE.MeshBasicMaterial({
+      map: specterFaceTexture,
+      side: THREE.DoubleSide,
+      transparent: true,
+      alphaTest: 0.05,
+    });
+
+    // Full-body texture loading user-requested namu.wiki image with reliable local fallback
+    const ghostFullBodyTexture = texLoader.load(
+      userGhostUrl,
+      (tex) => {
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.needsUpdate = true;
+        if (this.ghostFullBodyMat) {
+          this.ghostFullBodyMat.needsUpdate = true;
+        }
+      },
+      undefined,
+      () => {
+        // Fallback to local high-res ghost texture if external URL has CORS restrictions in WebGL
+        const fallbackTex = texLoader.load(ghostFaceImg, (fb) => {
+          fb.colorSpace = THREE.SRGBColorSpace;
+          fb.needsUpdate = true;
+        });
+        fallbackTex.colorSpace = THREE.SRGBColorSpace;
+        if (this.ghostFullBodyMat) {
+          this.ghostFullBodyMat.map = fallbackTex;
+          this.ghostFullBodyMat.needsUpdate = true;
+        }
+      }
+    );
+    ghostFullBodyTexture.colorSpace = THREE.SRGBColorSpace;
+    this.ghostFullBodyMat = new THREE.MeshBasicMaterial({
+      map: ghostFullBodyTexture,
+      side: THREE.DoubleSide,
+      transparent: true,
+      alphaTest: 0.05,
     });
 
     this.ghostHandMatWhite = new THREE.MeshStandardMaterial({
@@ -775,98 +823,100 @@ export class AbandonedMansionAssets {
     return mesh;
   }
 
-  // Create Ghost Phantom Figure (소복 입은 원혼 & 검은 도포 저승 망령)
+  // Create Ghost Phantom Figure (소복 입은 원혼 & 검은 도포 저승 망령) - 몸 전체 사진 적용
   public static createGhostFigure(variant: 'white_robe' | 'shadow_specter' = 'white_robe'): THREE.Group {
     this.initMaterials();
     const group = new THREE.Group();
 
     const isWhite = variant === 'white_robe';
     const robeMat = isWhite ? this.robeWhiteMat : this.robeBlackMat;
-    const faceMaterial = isWhite ? this.ghostFaceMat : this.specterFaceMat;
+    const bodyMaterial = isWhite ? this.ghostFullBodyMat : this.specterFullBodyMat;
 
-    const bodyGeo = this.getCone(0.48, 1.8, 10);
+    // 1. Full-Body Standing Ghost Image Billboard (Height 2.3m, Width 1.25m)
+    // [사용자 요청]: "이 귀신 사진을 얼굴말고 몸 전체의 붙혀줘"
+    // 머리부터 발끝까지 전신에 귀신 사진이 선명하게 투영된 대형 전신 평면
+    const fullBodyGeo = this.getPlane(1.25, 2.3);
+    const fullBodyFront = new THREE.Mesh(fullBodyGeo, bodyMaterial);
+    fullBodyFront.position.set(0, 1.15, 0.12);
+    fullBodyFront.name = isWhite ? 'ghost_terrifying_fullbody' : 'specter_fullbody';
+    group.add(fullBodyFront);
+
+    // 2. 3D 입체 볼륨을 부여하는 좌우 측면 전신 날개 평면 (어느 각도에서도 전신이 입체적으로 관측)
+    const sideBodyGeo = this.getPlane(0.75, 2.3);
+    const sideLeft = new THREE.Mesh(sideBodyGeo, bodyMaterial);
+    sideLeft.position.set(-0.35, 1.15, -0.05);
+    sideLeft.rotation.y = 0.55;
+    group.add(sideLeft);
+
+    const sideRight = new THREE.Mesh(sideBodyGeo, bodyMaterial);
+    sideRight.position.set(0.35, 1.15, -0.05);
+    sideRight.rotation.y = -0.55;
+    group.add(sideRight);
+
+    // 3. 측면 관측 시에도 전신 형태가 투영되도록 십자 보조 전신 평면 추가
+    const crossGeo = this.getPlane(0.95, 2.3);
+    const crossPlane = new THREE.Mesh(crossGeo, bodyMaterial);
+    crossPlane.position.set(0, 1.15, 0);
+    crossPlane.rotation.y = Math.PI / 2;
+    group.add(crossPlane);
+
+    // 4. 배후 음영 및 원혼의 공간 볼륨을 형성하는 원추형 몸체
+    const bodyGeo = this.getCone(0.55, 2.0, 10);
     const body = new THREE.Mesh(bodyGeo, robeMat);
-    body.position.y = 0.9;
+    body.position.set(0, 1.0, -0.1);
     group.add(body);
 
-    // Dark hair / shroud flowing behind head
+    // 5. 뒤쪽으로 흘러내리는 젖은 머리카락 및 영혼 잔상
     const headMat = isWhite ? this.ironMat : this.stoneMat;
-    const hair = new THREE.Mesh(this.getCylinder(0.24, 0.38, 1.15, 8), headMat);
-    hair.position.set(0, 1.40, -0.16);
+    const hair = new THREE.Mesh(this.getCylinder(0.24, 0.42, 1.25, 8), headMat);
+    hair.position.set(0, 1.45, -0.22);
     group.add(hair);
 
-    // Dark head backing sphere behind the face
-    const headBacking = new THREE.Mesh(this.getSphere(0.22, 10, 10), headMat);
-    headBacking.position.set(0, 1.76, -0.05);
-    group.add(headBacking);
-
-    // If Korean Grim Reaper / Shadow Specter (저승사자 망령), equip traditional Joseon Black Gat (흑립)
+    // 6. 저승사자 망령일 경우 흑립(갓) 장착
     if (!isWhite) {
-      // Gat Brim (저승사자의 넓고 서늘한 흑립 챙)
-      const gatBrimGeo = this.getCylinder(0.56, 0.56, 0.025, 16);
+      const gatBrimGeo = this.getCylinder(0.65, 0.65, 0.025, 16);
       const gatBrim = new THREE.Mesh(gatBrimGeo, this.robeBlackMat);
-      gatBrim.position.set(0, 2.06, 0.03);
+      gatBrim.position.set(0, 2.15, 0.03);
       gatBrim.name = 'grim_reaper_gat_brim';
       group.add(gatBrim);
 
-      // Gat Crown (높게 솟은 총모자 대우)
-      const gatCrownGeo = this.getCylinder(0.21, 0.25, 0.38, 12);
+      const gatCrownGeo = this.getCylinder(0.24, 0.28, 0.42, 12);
       const gatCrown = new THREE.Mesh(gatCrownGeo, this.robeBlackMat);
-      gatCrown.position.set(0, 2.25, 0.03);
+      gatCrown.position.set(0, 2.35, 0.03);
       gatCrown.name = 'grim_reaper_gat_crown';
       group.add(gatCrown);
     }
 
-    // Prominent Face Mesh with user-requested photo attached directly to the face!
-    // Large, crystal-clear, self-illuminated face mesh so it glares brightly in the dark corridors
-    const faceGeo = this.getPlane(0.55, 0.64);
-    const faceMesh = new THREE.Mesh(faceGeo, faceMaterial);
-    faceMesh.position.set(0, 1.76, 0.22);
-    faceMesh.name = isWhite ? 'ghost_terrifying_face' : 'specter_grim_reaper_face';
-    group.add(faceMesh);
+    // 7. 전신을 감싸는 으스스한 붉은 원혼의 영기 안광 조명
+    const fullBodyAura = new THREE.PointLight(isWhite ? 0xff2222 : 0xcc1133, 1.3, 4.5);
+    fullBodyAura.position.set(0, 1.4, 0.35);
+    fullBodyAura.name = 'ghost_fullbody_aura';
+    group.add(fullBodyAura);
 
-    // 3D Angled Side Cheeks to give the photo 3D depth and visibility from side angles
-    const cheekGeo = this.getPlane(0.22, 0.64);
-    const cheekLeft = new THREE.Mesh(cheekGeo, faceMaterial);
-    cheekLeft.position.set(-0.25, 1.76, 0.13);
-    cheekLeft.rotation.y = 0.65;
-    group.add(cheekLeft);
-
-    const cheekRight = new THREE.Mesh(cheekGeo, faceMaterial);
-    cheekRight.position.set(0.25, 1.76, 0.13);
-    cheekRight.rotation.y = -0.65;
-    group.add(cheekRight);
-
-    // Sinister aura light (Bright crimson for maiden, deep blood-curdling crimson/spectral for Grim Reaper specter)
-    const faceAura = new THREE.PointLight(isWhite ? 0xff1818 : 0xaa1133, 1.1, 3.8);
-    faceAura.position.set(0, 1.76, 0.32);
-    faceAura.name = 'ghost_aura';
-    group.add(faceAura);
-
-    // Ghostly outstretched arms reaching forward
-    const armGeo = this.getCylinder(0.04, 0.03, 0.65, 6);
+    // 8. 플레이어를 향해 뻗어오는 원혼의 창백한 양팔과 손톱
+    const armGeo = this.getCylinder(0.045, 0.035, 0.75, 6);
     const armL = new THREE.Mesh(armGeo, robeMat);
-    armL.position.set(-0.28, 1.42, 0.3);
+    armL.position.set(-0.38, 1.35, 0.32);
     armL.rotation.x = Math.PI / 2.2;
-    armL.rotation.z = -0.15;
+    armL.rotation.z = -0.2;
     group.add(armL);
 
     const armR = new THREE.Mesh(armGeo, robeMat);
-    armR.position.set(0.28, 1.42, 0.3);
+    armR.position.set(0.38, 1.35, 0.32);
     armR.rotation.x = Math.PI / 2.2;
-    armR.rotation.z = 0.15;
+    armR.rotation.z = 0.2;
     group.add(armR);
 
-    // Pale claws / hands
+    // 창백한 원혼 손톱
     const handMat = isWhite ? this.ghostHandMatWhite : this.ghostHandMatBlack;
-    const handGeo = this.getCone(0.04, 0.16, 6);
+    const handGeo = this.getCone(0.045, 0.18, 6);
     const handL = new THREE.Mesh(handGeo, handMat);
-    handL.position.set(-0.28, 1.42, 0.65);
+    handL.position.set(-0.38, 1.35, 0.75);
     handL.rotation.x = Math.PI / 2;
     group.add(handL);
 
     const handR = new THREE.Mesh(handGeo, handMat);
-    handR.position.set(0.28, 1.42, 0.65);
+    handR.position.set(0.38, 1.35, 0.75);
     handR.rotation.x = Math.PI / 2;
     group.add(handR);
 

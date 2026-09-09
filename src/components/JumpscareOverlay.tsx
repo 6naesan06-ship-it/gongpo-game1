@@ -100,9 +100,12 @@ export const JumpscareOverlay: React.FC<JumpscareOverlayProps> = ({ event, onCom
 
   if (!visible || !event) return null;
 
+  const USER_GHOST_FULLBODY_URL =
+    'https://i.namu.wiki/i/ZVFvc1kRNqfs5QMUVbp3VMepZA1ei5rGpPbbUvXHKVC3RDu1WCOGN_oVl5ic4JxZt725bMP-pRqt4jYgnVIpudnF4c2PsORN1foVz-P902UYk6w9wNjqs-5f3Rlr0T8gT6dj_wlgfwwDZx4oJPK-vQ.webp';
+
   const isBoss = event.variant === 'boss_demon';
   const isSpecterOrBoss = event.variant === 'shadow_specter' || isBoss;
-  const selectedImage = isSpecterOrBoss ? grimReaperSpecterImg : ghostFaceImg;
+  const selectedImage = isSpecterOrBoss ? grimReaperSpecterImg : USER_GHOST_FULLBODY_URL;
 
   return (
     <div
@@ -143,33 +146,39 @@ export const JumpscareOverlay: React.FC<JumpscareOverlayProps> = ({ event, onCom
             animation: 'jumpscareLungeIn 3.0s cubic-bezier(0.1, 0.9, 0.2, 1) forwards',
           }}
         >
-          <div className="relative max-w-2xl max-h-[85vh] w-auto h-auto flex items-center justify-center">
-            {/* Pulsing Aura Behind Ghost Face */}
+          <div className="relative max-w-2xl max-h-[90vh] w-auto h-auto flex items-center justify-center">
+            {/* Pulsing Aura Behind Ghost */}
             <div
-              className={`absolute -inset-8 rounded-full filter blur-3xl opacity-90 animate-pulse ${
+              className={`absolute -inset-10 rounded-full filter blur-3xl opacity-90 animate-pulse ${
                 isBoss ? 'bg-red-700' : 'bg-rose-900'
               }`}
             />
 
-            {/* Main Ghost Face Image */}
+            {/* Main Ghost Full-Body Image with refererPolicy for namu.wiki compatibility */}
             <img
               src={selectedImage}
-              alt="원혼 갑툭튀"
-              className={`relative object-contain max-h-[80vh] w-auto drop-shadow-[0_0_50px_rgba(239,68,68,0.9)] ${
+              referrerPolicy="no-referrer"
+              onError={(e) => {
+                if (e.currentTarget.src !== ghostFaceImg) {
+                  e.currentTarget.src = ghostFaceImg;
+                }
+              }}
+              alt="원혼 전신 갑툭튀"
+              className={`relative object-contain max-h-[88vh] w-auto drop-shadow-[0_0_60px_rgba(239,68,68,0.95)] ${
                 glitchPhase === 2 ? 'invert brightness-150 contrast-200' : ''
               }`}
               style={{
                 filter:
                   glitchPhase === 3
                     ? 'contrast(240%) brightness(120%) hue-rotate(330deg)'
-                    : 'contrast(180%) brightness(90%)',
+                    : 'contrast(180%) brightness(95%)',
               }}
             />
 
             {/* Ghost Name / Fear Stinger Caption */}
             <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-center whitespace-nowrap z-30 pointer-events-none">
               <span className="inline-block px-5 py-2 bg-black/85 border-2 border-red-700 text-red-500 font-serif font-black text-2xl tracking-widest shadow-[0_0_20px_rgba(220,38,38,0.9)] animate-bounce">
-                {event.ghostName ? `${event.ghostName}의 습격!` : '원혼의 기습!'}
+                {event.ghostName ? `${event.ghostName}의 전신 습격!` : '원혼의 전신 기습!'}
               </span>
               <div className="text-red-400 font-mono text-sm tracking-wider mt-1 drop-shadow font-bold">
                 정신력 급감 (-{event.damage} SAN)
