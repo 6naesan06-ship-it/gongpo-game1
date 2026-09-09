@@ -200,16 +200,17 @@ export class AbandonedMansionAssets {
     });
 
     this.woodPillarMat = new THREE.MeshStandardMaterial({
-      map: AbandonedMansionTextures.getWoodFloorTexture(),
-      color: 0x3a281c,
-      roughness: 0.8,
+      color: 0x222a27,
+      roughness: 0.72,
+      metalness: 0.38,
     });
 
     this.doorMat = new THREE.MeshStandardMaterial({
       map: AbandonedMansionTextures.getTornHanjiDoorTexture(),
-      roughness: 0.85,
+      roughness: 0.7,
+      metalness: 0.25,
       transparent: true,
-      opacity: 0.95,
+      opacity: 0.98,
     });
 
     this.talismanMat = new THREE.MeshStandardMaterial({
@@ -221,7 +222,9 @@ export class AbandonedMansionAssets {
 
     this.maskMat = new THREE.MeshStandardMaterial({
       map: AbandonedMansionTextures.getCursedMaskTexture(),
-      roughness: 0.75,
+      roughness: 0.4,
+      emissive: new THREE.Color(0x183842),
+      emissiveIntensity: 0.85,
       side: THREE.DoubleSide,
     });
 
@@ -232,55 +235,56 @@ export class AbandonedMansionAssets {
     });
 
     this.candleMat = new THREE.MeshStandardMaterial({
-      color: 0xd8c69f,
-      roughness: 0.4,
+      color: 0xd6e2dc,
+      roughness: 0.35,
     });
 
     this.brassMat = new THREE.MeshStandardMaterial({
-      color: 0x8a703d,
-      roughness: 0.35,
-      metalness: 0.8,
+      color: 0x76857f,
+      roughness: 0.28,
+      metalness: 0.88,
     });
 
     this.booksMat = new THREE.MeshStandardMaterial({
       map: AbandonedMansionTextures.getBookSpinesTexture(),
-      roughness: 0.8,
+      roughness: 0.75,
     });
 
     this.drawersMat = new THREE.MeshStandardMaterial({
       map: AbandonedMansionTextures.getMedicineDrawersTexture(),
-      roughness: 0.75,
+      roughness: 0.7,
     });
 
     this.screenMat = new THREE.MeshStandardMaterial({
       map: AbandonedMansionTextures.getFoldingScreenTexture(),
-      roughness: 0.7,
+      roughness: 0.65,
       side: THREE.DoubleSide,
     });
 
     this.stoneMat = new THREE.MeshStandardMaterial({
-      color: 0x3d423e,
-      roughness: 0.95,
-      metalness: 0.05,
+      color: 0x333b37,
+      roughness: 0.92,
+      metalness: 0.08,
     });
 
     this.ironMat = new THREE.MeshStandardMaterial({
-      color: 0x222224,
-      roughness: 0.6,
-      metalness: 0.9,
+      color: 0x242a28,
+      roughness: 0.55,
+      metalness: 0.85,
     });
 
     this.jarMat = new THREE.MeshStandardMaterial({
-      color: 0x241c16,
-      roughness: 0.85,
+      color: 0x8a1c1c,
+      roughness: 0.45,
+      metalness: 0.55,
     });
 
     this.puddleMat = new THREE.MeshStandardMaterial({
-      color: 0x0f1412,
-      roughness: 0.1,
-      metalness: 0.8,
+      color: 0x220707,
+      roughness: 0.08,
+      metalness: 0.85,
       transparent: true,
-      opacity: 0.85,
+      opacity: 0.88,
     });
 
     this.robeWhiteMat = new THREE.MeshStandardMaterial({
@@ -640,128 +644,121 @@ export class AbandonedMansionAssets {
     return mesh;
   }
 
-  // Create Shaman Ritual Altar (제사상과 촛불, 향로)
+  // Hospital Emergency Resuscitation & Triage Cart (응급 처치대와 링거 카트)
   public static createRitualAltar(): THREE.Group {
     this.initMaterials();
     const group = new THREE.Group();
 
-    // Table top
-    const tableTop = new THREE.Mesh(this.getBox(1.4, 0.08, 0.8), this.woodPillarMat);
-    tableTop.position.y = 0.75;
+    // Stainless steel medical cart top and bottom shelves
+    const tableTop = new THREE.Mesh(this.getBox(1.4, 0.06, 0.8), this.brassMat);
+    tableTop.position.y = 0.82;
     tableTop.castShadow = true;
     group.add(tableTop);
 
-    // Table legs
-    const legGeo = this.getBox(0.08, 0.75, 0.08);
+    const bottomShelf = new THREE.Mesh(this.getBox(1.36, 0.04, 0.76), this.brassMat);
+    bottomShelf.position.y = 0.22;
+    group.add(bottomShelf);
+
+    // Stainless tubular cart frame & legs
+    const legGeo = this.getCylinder(0.025, 0.025, 0.82, 8);
     const legPositions = [
-      [-0.6, 0.375, -0.3],
-      [0.6, 0.375, -0.3],
-      [-0.6, 0.375, 0.3],
-      [0.6, 0.375, 0.3],
+      [-0.62, 0.41, -0.34],
+      [0.62, 0.41, -0.34],
+      [-0.62, 0.41, 0.34],
+      [0.62, 0.41, 0.34],
     ];
     legPositions.forEach(([lx, ly, lz]) => {
-      const leg = new THREE.Mesh(legGeo, this.woodPillarMat);
+      const leg = new THREE.Mesh(legGeo, this.brassMat);
       leg.position.set(lx, ly, lz);
       group.add(leg);
+
+      // Caster wheels at bottom
+      const wheel = new THREE.Mesh(this.getCylinder(0.04, 0.04, 0.03, 8), this.ironMat);
+      wheel.rotation.z = Math.PI / 2;
+      wheel.position.set(lx, 0.04, lz);
+      group.add(wheel);
     });
 
-    // Ancestral Portrait / Tablet on table
-    const portraitGeo = this.getPlane(0.45, 0.6);
-    const portrait = new THREE.Mesh(portraitGeo, this.portraitMat);
-    portrait.position.set(0, 1.15, -0.28);
-    group.add(portrait);
+    // Guard rails on top tray
+    const railLong = new THREE.Mesh(this.getBox(1.4, 0.04, 0.02), this.brassMat);
+    railLong.position.set(0, 0.87, -0.39);
+    group.add(railLong);
 
-    // Brass incense burner (향로)
-    const burner = new THREE.Mesh(this.getCylinder(0.12, 0.08, 0.12, 16), this.brassMat);
-    burner.position.set(0, 0.85, 0.1);
-    group.add(burner);
+    // Emergency Cardiac Monitor / Defibrillator with vital display screen
+    const monitorBox = new THREE.Mesh(this.getBox(0.48, 0.38, 0.3), this.ironMat);
+    monitorBox.position.set(0, 1.04, -0.15);
+    group.add(monitorBox);
 
-    // Incense sticks (향 3개)
-    const stickGeo = this.getCylinder(0.005, 0.005, 0.25, 6);
-    const tipGeo = this.getSphere(0.008, 6, 6);
-    for (let i = -1; i <= 1; i++) {
-      const stick = new THREE.Mesh(stickGeo, this.incenseStickMat);
-      stick.position.set(i * 0.03, 0.98, 0.1);
-      stick.rotation.z = i * 0.15;
-      group.add(stick);
+    const monitorScreen = new THREE.Mesh(this.getPlane(0.38, 0.28), this.portraitMat);
+    monitorScreen.position.set(0, 1.04, 0.002);
+    group.add(monitorScreen);
 
-      // Glowing ember tip
-      const tip = new THREE.Mesh(tipGeo, this.emberMat);
-      tip.position.set(i * 0.03 + i * 0.02, 1.1, 0.1);
-      group.add(tip);
-    }
+    // IV Drip Pole (링거 수액 걸이대)
+    const ivPole = new THREE.Mesh(this.getCylinder(0.015, 0.015, 1.3, 8), this.brassMat);
+    ivPole.position.set(-0.52, 1.45, -0.25);
+    group.add(ivPole);
 
-    // Left and Right Candles (촛대와 촛불)
-    const holderGeo = this.getCylinder(0.06, 0.1, 0.08, 12);
-    const waxGeo = this.getCylinder(0.035, 0.035, 0.24, 12);
-    const flameGeo = this.getCone(0.025, 0.07, 8);
+    // Hanging IV Saline Bag (투명 수액팩)
+    const ivBag = new THREE.Mesh(this.getBox(0.12, 0.22, 0.05), this.candleMat);
+    ivBag.position.set(-0.52, 1.95, -0.25);
+    group.add(ivBag);
 
-    const createCandle = (xOffset: number) => {
-      const candleGroup = new THREE.Group();
-      // Brass holder
-      const holder = new THREE.Mesh(holderGeo, this.brassMat);
-      holder.position.y = 0.83;
-      candleGroup.add(holder);
+    // Emergency Recovery Triage Beacons / Medicine Ampoules
+    const beaconGeo = this.getCylinder(0.05, 0.06, 0.12, 10);
+    const beaconL = new THREE.Mesh(beaconGeo, this.flameMat);
+    beaconL.position.set(-0.35, 0.91, 0.15);
+    beaconL.name = 'candle_flame';
+    group.add(beaconL);
 
-      // Wax candle
-      const wax = new THREE.Mesh(waxGeo, this.candleMat);
-      wax.position.y = 0.98;
-      candleGroup.add(wax);
+    const beaconR = new THREE.Mesh(beaconGeo, this.flameMat);
+    beaconR.position.set(0.35, 0.91, 0.15);
+    beaconR.name = 'candle_flame';
+    group.add(beaconR);
 
-      // Flame (Glowing emissive flame)
-      const flame = new THREE.Mesh(flameGeo, this.flameMat);
-      flame.position.y = 1.13;
-      flame.name = 'candle_flame';
-      candleGroup.add(flame);
-
-      candleGroup.position.x = xOffset;
-      candleGroup.position.z = -0.1;
-      return candleGroup;
-    };
-
-    group.add(createCandle(-0.45));
-    group.add(createCandle(0.45));
-
-    // Scatter talismans on table
-    const talOnTable = this.createTalisman(0.2, 0.38);
+    // Sterile emergency triage manual / Biohazard seal on cart
+    const talOnTable = this.createTalisman(0.24, 0.42);
     talOnTable.rotation.x = -Math.PI / 2;
-    talOnTable.position.set(-0.2, 0.8, 0.15);
+    talOnTable.position.set(0.2, 0.86, 0.1);
     group.add(talOnTable);
 
     return group;
   }
 
-  // Create Antique Korean Wardrobe (자개장 / 낡은 장롱)
+  // Hospital Metal Locker / Medicine Storage Cabinet (폐병원 철제 락커 및 약품 수납장)
   public static createWardrobe(): THREE.Group {
     this.initMaterials();
     const group = new THREE.Group();
 
-    // Body
-    const body = new THREE.Mesh(this.getBox(1.2, 2.2, 0.6), this.woodPillarMat);
+    // Steel cabinet body
+    const body = new THREE.Mesh(this.getBox(1.2, 2.2, 0.6), this.ironMat);
     body.position.y = 1.1;
     body.castShadow = true;
     group.add(body);
 
-    // Brass handles
-    const ringGeo = this.getTorus(0.04, 0.01, 8, 16);
+    // Cabinet vent slits and door divider
+    const divider = new THREE.Mesh(this.getBox(0.03, 2.1, 0.02), this.brassMat);
+    divider.position.set(0, 1.1, 0.31);
+    group.add(divider);
+
+    // Stainless handles
     for (let h = -1; h <= 1; h += 2) {
-      const handle = new THREE.Mesh(ringGeo, this.brassMat);
-      handle.position.set(h * 0.15, 1.1, 0.31);
+      const handle = new THREE.Mesh(this.getBox(0.03, 0.22, 0.04), this.brassMat);
+      handle.position.set(h * 0.18, 1.1, 0.33);
       group.add(handle);
     }
 
-    // Seal talisman pasted across cabinet doors (봉인된 장롱)
-    const seal = this.createTalisman(0.22, 0.44);
-    seal.position.set(0, 1.2, 0.31);
+    // Biohazard Quarantine Seal taped across locker doors
+    const seal = this.createTalisman(0.25, 0.48);
+    seal.position.set(0, 1.25, 0.315);
     group.add(seal);
 
     return group;
   }
 
-  // Create Antique Ceramic Jar (옹기 항아리)
+  // Biohazard Waste Container / Stainless Medical Disposal Drum (의료 폐기물 수거통)
   public static createClayJar(scale: number = 1.0): THREE.Mesh {
     this.initMaterials();
-    const geo = this.getCylinder(0.28 * scale, 0.38 * scale, 0.7 * scale, 12);
+    const geo = this.getCylinder(0.28 * scale, 0.32 * scale, 0.7 * scale, 14);
     const mesh = new THREE.Mesh(geo, this.jarMat);
     mesh.position.y = 0.35 * scale;
     mesh.castShadow = true;
@@ -1595,3 +1592,6 @@ export class AbandonedMansionAssets {
     return arenaGroup;
   }
 }
+
+// Backward-compatible and theme-matching alias for Abandoned Hospital
+export const AbandonedHospitalAssets = AbandonedMansionAssets;

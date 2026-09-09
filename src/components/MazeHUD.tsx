@@ -900,7 +900,7 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
               <p>{investigationModal.text}</p>
               {investigationModal.relic?.lore && (
                 <div className="mt-4 pt-3 border-t border-neutral-800 text-xs text-amber-300/90">
-                  <span className="font-semibold text-amber-400 block mb-1">[폐가 괴담 기록]</span>
+                  <span className="font-semibold text-amber-400 block mb-1">[폐병원 사건 기록]</span>
                   <p className="italic">{investigationModal.relic.lore}</p>
                 </div>
               )}
@@ -925,7 +925,7 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
             <div className="flex items-center justify-between border-b border-neutral-800 pb-3 mb-3">
               <div className="flex items-center gap-2 text-amber-400 font-bold text-lg font-mono">
                 <BookOpen className="w-5 h-5" />
-                <span>수습한 폐옥 유물 도감 ({collectedRelics.length} / 20종 발견)</span>
+                <span>수습한 폐병원 유물 도감 ({collectedRelics.length} / 20종 발견)</span>
               </div>
               <button
                 onClick={() => setShowCodex(false)}
@@ -991,7 +991,7 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
                   <Ghost className="w-10 h-10 mx-auto mb-2 opacity-40" />
                   <p>아직 수습된 유물이 없습니다.</p>
                   <p className="text-xs text-neutral-600 mt-1">
-                    미로 속 제단실, 헛간, 부적 벽면을 조사([E])하여 유물 20개를 모아 어둑시니 결계를 해제하세요.
+                    미로 속 응급처치대, 격리실, 보관함을 조사([E])하여 유물 20개를 모아 어둑시니 결계를 해제하세요.
                   </p>
                 </div>
               ) : (

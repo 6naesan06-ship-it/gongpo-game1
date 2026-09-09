@@ -358,23 +358,23 @@ export default function App() {
 
           <div className="relative max-w-xl w-full bg-black/90 border border-neutral-800 rounded-3xl p-8 shadow-2xl flex flex-col items-center text-center">
             {/* Badge */}
-            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-950/80 border border-amber-800/80 text-amber-400 text-xs font-mono mb-4">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-950/80 border border-emerald-800/80 text-emerald-400 text-xs font-mono mb-4">
               <Compass className="w-3.5 h-3.5" />
-              <span>1978년 폐옥 목조 흉가 · 끝없는 미로</span>
+              <span>1982년 폐쇄 국립정신병원 · 끝없는 미로</span>
             </div>
 
             {/* Title */}
             <h1 className="text-3xl sm:text-4xl font-extrabold text-neutral-100 tracking-tight leading-tight">
-              폐가: 끝없는 미로
+              폐병원: 끝없는 미로
             </h1>
-            <p className="text-sm font-mono text-neutral-400 mt-1">Haunted Abandoned Mansion Labyrinth</p>
+            <p className="text-sm font-mono text-neutral-400 mt-1">Haunted Abandoned Hospital Labyrinth</p>
 
             {/* Atmosphere Lore & Rules Box */}
             <div className="w-full my-6 p-4 rounded-2xl bg-neutral-900/80 border border-neutral-800 text-left text-xs leading-relaxed text-neutral-300 space-y-2.5 font-mono">
               <p className="text-amber-400 font-semibold flex items-center gap-1.5">
                 <Flame className="w-4 h-4 text-amber-500" /> [생존 및 탈출 규칙]
               </p>
-              <p>• <strong>유일한 탈출 조건:</strong> 오직 어둠의 거대 군주 <strong>[어둑시니]</strong>를 쓰러뜨려야만 폐가의 결계가 깨지고 탈출할 수 있습니다.</p>
+              <p>• <strong>유일한 탈출 조건:</strong> 오직 어둠의 거대 군주 <strong>[어둑시니]</strong>를 쓰러뜨려야만 폐병원의 결계가 깨지고 탈출할 수 있습니다.</p>
               <p className="text-amber-300">
                 • <strong>어둑시니 결계 진입 조건:</strong> <strong>[유물 20종 전수 수습]</strong> + <strong>[구천응원 봉인부적]</strong> + <strong>[사인참사검]</strong> 3가지를 모두 갖추어야만 어둑시니의 결계가 열립니다!
               </p>
@@ -382,7 +382,7 @@ export default function App() {
                 • <strong>제자리 부활 (목숨 2개 추가):</strong> 귀신에게 잡히더라도 <strong>총 3개의 목숨(제자리 부활 2회)</strong>이 주어집니다! 부활 시 정신력/스태미나 완충 및 <strong>귀신이 20m 이상 멀리 튕겨져 나갑니다.</strong>
               </p>
               <p>• <strong>체력 증강 (스태미나 200):</strong> 스태미나가 200으로 확장되어 원혼의 추격을 피해 더 오래 질주할 수 있습니다.</p>
-              <p>• <strong>제사상과 촛불:</strong> 타오르는 촛불을 조사([E])하면 깎여나간 정신력(SAN)을 회복합니다.</p>
+              <p>• <strong>응급 처치대와 링거 수액:</strong> 처치대 카트를 조사([E])하면 깎여나간 정신력(SAN)을 100% 완전 회복합니다.</p>
             </div>
 
             {/* Controls Guide Table */}
@@ -393,10 +393,10 @@ export default function App() {
               <div><strong className="text-white">Shift</strong> 전력 질주</div>
               <div><strong className="text-amber-300 font-bold">[1번/Z]</strong> 회중전등 (기본)</div>
               <div><strong className="text-cyan-300 font-bold">[좌클릭/F]</strong> 전등·무기 사용</div>
-              <div><strong className="text-amber-400 font-bold">[E / 우클릭]</strong> 문·제사상·유물</div>
+              <div><strong className="text-amber-400 font-bold">[E / 우클릭]</strong> 문·처치대·유물</div>
               <div className="col-span-2 sm:col-span-3 text-neutral-400 text-[10px] border-t border-neutral-800/60 pt-1.5 mt-0.5">
-                • <strong>신물 탐색:</strong> 봉인부적[2번/X]과 사인참사검[3번/C]은 미로 속 제단과 보검대에서 찾아내야 합니다.<br />
-                • <strong>정밀 조준 상호작용:</strong> 제사상이나 유물은 화면 정중앙으로 조준한 상태에서 [E] 키 또는 클릭해야 작동합니다.
+                • <strong>신물 탐색:</strong> 봉인부적[2번/X]과 사인참사검[3번/C]은 미로 속 격리실 제단과 보검대에서 찾아내야 합니다.<br />
+                • <strong>정밀 조준 상호작용:</strong> 처치대나 유물은 화면 정중앙으로 조준한 상태에서 [E] 키 또는 클릭해야 작동합니다.
               </div>
             </div>
 
@@ -434,10 +434,10 @@ export default function App() {
             {/* Start Button */}
             <button
               onClick={handleStartGame}
-              className="w-full py-4 rounded-2xl bg-amber-600 hover:bg-amber-500 active:scale-[0.98] text-neutral-950 font-bold text-base shadow-[0_0_25px_rgba(217,119,6,0.4)] transition flex items-center justify-center gap-2 cursor-pointer font-mono"
+              className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-neutral-950 font-bold text-base shadow-[0_0_25px_rgba(16,185,129,0.4)] transition flex items-center justify-center gap-2 cursor-pointer font-mono"
             >
               <Play className="w-5 h-5 fill-neutral-950" />
-              <span>폐옥 문 열기 (미로 진입)</span>
+              <span>폐병원 정문 열기 (미로 진입)</span>
             </button>
           </div>
         </div>
@@ -455,7 +455,7 @@ export default function App() {
             <p className="text-xs font-mono text-neutral-500 mt-1">[끝없는 어둠 속에 잠식되었습니다]</p>
 
             <p className="text-sm text-neutral-300 my-5 leading-relaxed bg-neutral-900/60 p-4 rounded-2xl border border-neutral-800 font-mono">
-              끝없는 폐가의 미로 속에서 공포를 이기지 못하고 이성을 잃었습니다. 당신의 발소리는 이제 삐걱거리는 마룻바닥 아래 영원한 원혼의 속삭임이 되었습니다.
+              끝없는 폐병원의 미로 속에서 공포를 이기지 못하고 이성을 잃었습니다. 당신의 발소리는 이제 차디찬 병원 복도 타일 아래 영원한 원혼의 비명이 되었습니다.
             </p>
 
             {/* Run Stats */}
@@ -481,7 +481,7 @@ export default function App() {
               className="w-full py-3.5 rounded-2xl bg-rose-700 hover:bg-rose-600 text-white font-bold text-sm shadow-[0_0_20px_rgba(225,29,72,0.4)] transition flex items-center justify-center gap-2 cursor-pointer font-mono"
             >
               <RotateCcw className="w-4 h-4" />
-              <span>폐옥 입구에서 다시 시작</span>
+              <span>폐병원 입구에서 다시 시작</span>
             </button>
           </div>
         </div>

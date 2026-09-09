@@ -735,15 +735,15 @@ export class InfiniteMazeEngine {
     const isAltarRoom = !isStartRoom && !isSacredTalismanRoom && !isSacredSwordRoom && (roomDistance > 0 && roomDistance % 3 === 0);
 
     if (isStartRoom) {
-      // 0. Starting Entrance Foyer (시작 대청마루 현관) - 탁 트인 시야 확보
-      // 벽면에 붙은 고가구 (중앙 시야 및 통로 완전 개방)
+      // 0. Starting Entrance Foyer (폐병원 1층 응급 로비 및 접수처) - 탁 트인 시야 확보
+      // 벽면에 붙은 철제 수납장 (중앙 시야 및 통로 완전 개방)
       const sideWardrobe = AbandonedMansionAssets.createWardrobe();
       sideWardrobe.position.set(-2.2, 0, 0);
       sideWardrobe.rotation.y = Math.PI / 2;
       group.add(sideWardrobe);
       walls.push({ minX: cx - 2.6, maxX: cx - 1.8, minZ: cz - 0.8, maxZ: cz + 0.8 });
     } else if (isSacredTalismanRoom) {
-      // Sacred Sealing Talisman Altar Room (구천응원 봉인부적 안치실)
+      // Sacred Sealing Talisman Altar Room (격리병동 구천응원 봉인부적 안치실)
       const talPedestal = AbandonedMansionAssets.createSacredTalismanPedestal();
       talPedestal.position.set(0, 0, -1.8);
       group.add(talPedestal);
@@ -756,7 +756,7 @@ export class InfiniteMazeEngine {
         description: '[E] 신비롭게 떠오르는 황금빛 봉인부적을 획득합니다. (원혼 봉인 퇴마)',
       });
     } else if (isSacredSwordRoom) {
-      // Sacred Exorcism Sword Shrine (사인참사검 보검 안치실)
+      // Sacred Exorcism Sword Shrine (영안실 사인참사검 보검 안치실)
       const swordPedestal = AbandonedMansionAssets.createSacredSwordPedestal();
       swordPedestal.position.set(0, 0, -1.8);
       group.add(swordPedestal);
@@ -769,7 +769,7 @@ export class InfiniteMazeEngine {
         description: '[E] 푸른 성광을 내뿜는 사인참사검을 뽑아듭니다. (원혼 즉각 퇴마)',
       });
     } else if (isAltarRoom) {
-      // Shaman Shrine with Folding Screen & Sanity Altar (8폭 병풍과 사당 제사상)
+      // Hospital Triage Altar Station with Privacy Curtains (폐병원 응급 처치대와 링거 카트)
       const shrineAltar = AbandonedMansionAssets.createFoldingScreenAltar();
       shrineAltar.position.set(0, 0, -2.0);
       group.add(shrineAltar);
@@ -778,10 +778,10 @@ export class InfiniteMazeEngine {
       const relicId = `relic_altar_${gx}_${gz}`;
       const relicItem: RelicItem = {
         id: relicId,
-        name: '안식의 경면주사 부적 (정신력 회복)',
+        name: '구급 수액팩과 진정제 (정신력 회복)',
         category: 'talisman',
-        description: '타오르는 백색 촛불과 은은한 향내 속에 놓인 영험한 부적. 원혼의 저주를 씻어낸다.',
-        lore: '사당에 모셔진 위패와 촛불의 온기가 공포에 떨리는 정신을 온전히 진정시켜 준다.',
+        description: '차디찬 응급 카트에 놓인 의료용 진정 수액팩. 극도의 공포로 무너진 신경을 가라앉힌다.',
+        lore: '폐병원의 어둠 속에서 유일하게 미약한 온기를 뿜는 응급 처치대.',
         iconName: 'Sparkles',
         collectedAtDepth: Math.round(Math.hypot(cx, cz)),
       };
@@ -790,15 +790,15 @@ export class InfiniteMazeEngine {
         mesh: shrineAltar,
         relic: relicItem,
         type: 'altar',
-        name: '사당 제사상 (정신력 100% 회복)',
-        description: '[E] 촛불에 손을 모아 기도하고 정신력을 100% 완전 회복합니다.',
+        name: '응급 처치대와 링거 카트 (정신력 100% 회복)',
+        description: '[E] 응급 처치대에서 치료를 받고 정신력을 100% 완전 회복합니다.',
       });
     } else {
-      // 12 Unique Specialized Korean Mansion Rooms
+      // 12 Unique Specialized Hospital Chambers
       const specificType = hash % 12;
 
       if (specificType === 0) {
-        // 1. Master Bedroom with Wardrobe & Cursed Mask (안방 및 자개장)
+        // 1. Radiology X-Ray Examination Chamber (방사선과 엑스레이 필름실)
         const wardrobe = AbandonedMansionAssets.createWardrobe();
         wardrobe.position.set(-2.2, 0, 0);
         wardrobe.rotation.y = Math.PI / 2;
@@ -812,10 +812,10 @@ export class InfiniteMazeEngine {
 
         const relicItem: RelicItem = {
           id: `mask_${gx}_${gz}`,
-          name: '눈동자가 떨리는 목각 하회탈',
+          name: '흉부 갈비뼈 속 원혼의 엑스레이 필름',
           category: 'curio',
-          description: '눈구멍에서 검붉은 피가 흘러내리는 낡은 목각탈. 가까이 가면 사각거리는 소리가 들린다.',
-          lore: '원혼이 깃들어 사람이 지나갈 때마다 시선을 쫓는다는 저주받은 방상시 가면.',
+          description: '불빛에 비추면 인체 흉골 사이에 웅크린 기괴한 귀신의 형상이 선명하게 드러나는 필름.',
+          lore: '생전 정체불명의 심령 질환을 앓다 사망한 103호 환자의 흉부 방사선 사진.',
           iconName: 'Ghost',
           collectedAtDepth: Math.round(Math.hypot(cx, cz)),
         };
@@ -824,11 +824,11 @@ export class InfiniteMazeEngine {
           mesh: mask,
           relic: relicItem,
           type: 'mask',
-          name: '벽에 걸린 흉측한 목각탈',
-          description: '[E] 기괴한 목각탈을 조사합니다.',
+          name: '벽에 걸린 발광 엑스레이 판독기',
+          description: '[E] 기괴한 원혼의 엑스레이 필름을 조사합니다.',
         });
       } else if (specificType === 1) {
-        // 2. Flooded Storeroom with Clay Jars (침수된 옹기 헛간)
+        // 2. Flooded Biohazard Waste Chamber (오염수로 침수된 의료 폐기물실)
         const puddle = AbandonedMansionAssets.createPuddle(1.8);
         group.add(puddle);
 
@@ -843,10 +843,10 @@ export class InfiniteMazeEngine {
 
         const relicItem: RelicItem = {
           id: `diary_${gx}_${gz}`,
-          name: '찢겨진 1978년 일기장 조각',
+          name: '피 묻은 1982년 폐업 병원 환자 일지',
           category: 'document',
-          description: '물에 젖어 잉크가 번진 종이 조각. "더 이상 나갈 수 없다... 벽이 밤마다 움직인다"라고 적혀 있다.',
-          lore: '폐가에 들어왔다가 길을 잃고 영원히 헤매던 이전 조난자의 마지막 기록.',
+          description: '오염수에 젖어 잉크가 번진 종이 뭉치. "더 이상 나갈 수 없다... 병동 벽이 밤마다 살아 움직인다"라고 적혀 있다.',
+          lore: '폐병원 폐쇄 직전 갇혀 길을 잃고 헤매던 수간호사의 마지막 기록.',
           iconName: 'BookOpen',
           collectedAtDepth: Math.round(Math.hypot(cx, cz)),
         };
@@ -855,21 +855,21 @@ export class InfiniteMazeEngine {
           mesh: jar1,
           relic: relicItem,
           type: 'relic',
-          name: '깨진 옹기 항아리 틈새',
-          description: '[E] 항아리 속 젖은 일기장을 줍습니다.',
+          name: '의료 폐기물 수거통 틈새',
+          description: '[E] 수거통 속 젖은 환자 일지를 줍습니다.',
         });
       } else if (specificType === 2) {
-        // 3. Forbidden Library Chamber (금서고 및 고서화 서재)
+        // 3. Medical Records Archive (환자 의무기록 보관실)
         const library = AbandonedMansionAssets.createBookshelfChamber();
         group.add(library);
         walls.push({ minX: cx - 1.4, maxX: cx + 1.4, minZ: cz - 2.2, maxZ: cz - 1.4 });
 
         const relicItem: RelicItem = {
           id: `scroll_${gx}_${gz}`,
-          name: '봉인된 묵필 주술서 두루마리',
+          name: '봉인된 비밀 임상실험 차트철',
           category: 'document',
-          description: '검은 먹과 붉은 인주로 기이한 귀신 퇴치 진언이 빽빽하게 기록된 두루마리.',
-          lore: '조선 후기 퇴마 의식에 사용되던 고문서로, 미로의 비밀이 기록되어 있다.',
+          description: '붉은 압인과 봉인 테이프로 밀봉된 비인도적 인체 실험 기록 파일.',
+          lore: '병원 지하실에서 자행되던 극비 주술 의식과 약물 실험의 전말이 적혀 있다.',
           iconName: 'BookOpen',
           collectedAtDepth: Math.round(Math.hypot(cx, cz)),
         };
@@ -878,21 +878,21 @@ export class InfiniteMazeEngine {
           mesh: library,
           relic: relicItem,
           type: 'relic',
-          name: '서탁 위의 봉인된 주술서',
-          description: '[E] 주술서 두루마리를 수습합니다.',
+          name: '차트 보관함 위의 비밀 기록철',
+          description: '[E] 비밀 임상실험 차트를 수습합니다.',
         });
       } else if (specificType === 3) {
-        // 4. Traditional Kitchen with Iron Cauldron (전통 부뚜막과 가마솥)
+        // 4. Autopsy & Sterilization Room (수술 도구 고압 멸균 소독실)
         const kitchen = AbandonedMansionAssets.createTraditionalKitchen();
         group.add(kitchen);
         walls.push({ minX: cx - 1.4, maxX: cx + 1.4, minZ: cz - 2.2, maxZ: cz - 0.8 });
 
         const relicItem: RelicItem = {
           id: `pot_${gx}_${gz}`,
-          name: '그을음 묻은 놋쇠 제기 그릇',
+          name: '그을린 스테인리스 수술용 트레이',
           category: 'curio',
-          description: '부뚜막 재 속에 묻혀 있던 오래된 놋그릇. 뒤편에 가문의 문양이 음각되어 있다.',
-          lore: '오랜 세월 동안 화마와 원혼의 저주를 견뎌낸 가보.',
+          description: '소독기 재 속에 묻혀 있던 오래된 스테인리스 의료 트레이. 모서리에 병원 로고가 음각되어 있다.',
+          lore: '오랜 세월 동안 화마와 원혼의 피비린내를 견뎌낸 외과 도구함.',
           iconName: 'Sparkles',
           collectedAtDepth: Math.round(Math.hypot(cx, cz)),
         };
@@ -901,21 +901,21 @@ export class InfiniteMazeEngine {
           mesh: kitchen,
           relic: relicItem,
           type: 'relic',
-          name: '부뚜막 가마솥 주변',
-          description: '[E] 재 속에 묻힌 놋그릇 유물을 줍습니다.',
+          name: '소독기 세척대 주변',
+          description: '[E] 재 속에 묻힌 스테인리스 수술 트레이를 줍습니다.',
         });
       } else if (specificType === 4) {
-        // 5. Herbalist Medicine Apothecary (약초방과 한약 서랍장)
+        // 5. Hospital Pharmacy & Dispensary (중앙 약제실 약품 보관소)
         const herbal = AbandonedMansionAssets.createMedicineCabinet();
         group.add(herbal);
         walls.push({ minX: cx - 1.5, maxX: cx + 1.5, minZ: cz - 2.2, maxZ: cz - 1.4 });
 
         const relicItem: RelicItem = {
           id: `herb_${gx}_${gz}`,
-          name: '말린 천년 백단향 약재 주머니',
+          name: '미개봉 비상 진통 앰플 주머니',
           category: 'curio',
-          description: '은은한 향을 내뿜는 비단 주머니. 귀신이 싫어하는 향을 머금고 있다.',
-          lore: '원혼의 접근을 늦추고 공포심을 진정시키는 약방의 비전 향낭.',
+          description: '특수 밀봉된 비상 모르핀 및 진통 앰플 팩. 은은한 알코올 소독향을 풍긴다.',
+          lore: '원혼의 접근을 늦추고 극심한 공포심을 진정시키는 약제실의 비전 앰플.',
           iconName: 'Sparkles',
           collectedAtDepth: Math.round(Math.hypot(cx, cz)),
         };
@@ -924,21 +924,21 @@ export class InfiniteMazeEngine {
           mesh: herbal,
           relic: relicItem,
           type: 'relic',
-          name: '약초 서랍장 틈새',
-          description: '[E] 비단 향낭을 챙깁니다.',
+          name: '약품 서랍장 틈새',
+          description: '[E] 비상 진통 앰플 팩을 챙깁니다.',
         });
       } else if (specificType === 5) {
-        // 6. Inner Courtyard with Stone Pagoda (중정 석등과 고목)
+        // 6. Radiation Therapy Isolation Chamber (지하 차폐 방사선 치료실)
         const courtyard = AbandonedMansionAssets.createStonePagodaCourtyard();
         group.add(courtyard);
         walls.push({ minX: cx - 0.5, maxX: cx + 0.5, minZ: cz - 0.5, maxZ: cz + 0.5 });
 
         const relicItem: RelicItem = {
           id: `pagoda_${gx}_${gz}`,
-          name: '이끼 낀 석등의 사리석 조각',
+          name: '신비로운 푸른빛 방사선 차폐석',
           category: 'curio',
-          description: '석등 내부에서 은은하게 빛나던 신비로운 푸른빛 돌조각.',
-          lore: '망자의 넋을 인도하던 정원의 등불 속에 감춰져 있던 수호석.',
+          description: '납 차폐 장치 내부에서 푸른빛 형광을 발산하는 신비로운 광석 조각.',
+          lore: '어둠 속에서 영혼의 길을 밝히며 망령의 기운을 흡수하는 보호석.',
           iconName: 'Sparkles',
           collectedAtDepth: Math.round(Math.hypot(cx, cz)),
         };
@@ -947,21 +947,21 @@ export class InfiniteMazeEngine {
           mesh: courtyard,
           relic: relicItem,
           type: 'relic',
-          name: '중정의 타오르는 석등',
-          description: '[E] 석등 속 사리석 조각을 수습합니다.',
+          name: '중앙 방사선 조사 장치',
+          description: '[E] 장치 속 푸른빛 차폐석 조각을 수습합니다.',
         });
       } else if (specificType === 6) {
-        // 7. Cellar Iron Dungeon Cage (지하실 쇠창살 감옥)
+        // 7. Psychiatric Ward Isolation Cell (정신과 폐쇄병동 격리 독방)
         const dungeon = AbandonedMansionAssets.createIronCageDungeon();
         group.add(dungeon);
         walls.push({ minX: cx - 1.4, maxX: cx + 1.4, minZ: cz - 1.8, maxZ: cz - 1.4 });
 
         const relicItem: RelicItem = {
           id: `key_${gx}_${gz}`,
-          name: '피 묻은 녹슨 감옥 열쇠 다발',
+          name: '피 묻은 낡은 병동 철제 마스터키',
           category: 'key',
-          description: '묵직한 쇠로 만들어진 낡은 열쇠 꾸러미. 오래된 혈흔이 말라붙어 있다.',
-          lore: '폐가 지하 밀실에 갇혔던 사람들이 탈출하기 위해 필사적으로 쥐고 있던 열쇠.',
+          description: '묵직한 강철로 주조된 폐쇄병동 마스터 열쇠 꾸러미. 오래된 혈흔이 말라붙어 있다.',
+          lore: '독방에 갇혔던 수용자들이 탈출하기 위해 필사적으로 쥐고 있던 마지막 열쇠.',
           iconName: 'Key',
           collectedAtDepth: Math.round(Math.hypot(cx, cz)),
         };
@@ -970,21 +970,21 @@ export class InfiniteMazeEngine {
           mesh: dungeon,
           relic: relicItem,
           type: 'relic',
-          name: '녹슨 쇠창살 감옥',
-          description: '[E] 쇠사슬에 걸린 옥 열쇠를 줍습니다.',
+          name: '격리 독방 철창 틈새',
+          description: '[E] 쇠사슬에 걸린 병동 마스터키를 줍습니다.',
         });
       } else if (specificType === 7) {
-        // 8. Embroidery & Sewing Chamber (규수방 자수틀과 목각 경대)
+        // 8. Intensive Care Unit Inpatient Ward (중환자실 ICU 병상)
         const embroidery = AbandonedMansionAssets.createEmbroideryChamber();
         group.add(embroidery);
         walls.push({ minX: cx - 2.0, maxX: cx - 1.0, minZ: cz - 1.8, maxZ: cz - 1.0 });
 
         const relicItem: RelicItem = {
           id: `silk_${gx}_${gz}`,
-          name: '피로 수놓은 규수의 비단 자수보',
+          name: '피로 얼룩진 환자복 억제대 붕대천',
           category: 'curio',
-          description: '붉은 실과 흑실로 정교하게 연꽃 문양이 수놓아진 비단 천. 슬픈 한이 서려 있다.',
-          lore: '억울하게 규수방에 갇혀 한 평생을 마감한 아가씨의 유품.',
+          description: '환자의 사지를 결박하던 두꺼운 의료용 억제 붕대천. 슬픈 한과 비명이 서려 있다.',
+          lore: '중환자실 침대에 묶여 고통스럽게 생을 마감한 무명 환자의 유품.',
           iconName: 'Sparkles',
           collectedAtDepth: Math.round(Math.hypot(cx, cz)),
         };
@@ -993,21 +993,21 @@ export class InfiniteMazeEngine {
           mesh: embroidery,
           relic: relicItem,
           type: 'relic',
-          name: '규수방 목각 경대와 자수틀',
-          description: '[E] 거울 앞 비단 자수보를 수습합니다.',
+          name: '중환자실 침상과 억제대',
+          description: '[E] 침대 난간의 억제 붕대천을 수습합니다.',
         });
       } else if (specificType === 8) {
-        // 9. Shaman Ritual Instruments Hall (제례 악기실과 대북 & 징)
+        // 9. Central Operating Theatre (중앙 수술실과 무영등)
         const instruments = AbandonedMansionAssets.createRitualInstrumentsHall();
         group.add(instruments);
         walls.push({ minX: cx - 0.5, maxX: cx + 0.5, minZ: cz - 2.0, maxZ: cz - 1.2 });
 
         const relicItem: RelicItem = {
           id: `gong_mallet_${gx}_${gz}`,
-          name: '귀신을 쫓는 흑단목 제례 북채',
+          name: '원혼을 베어내는 외과용 절개 메스',
           category: 'ritual',
-          description: '신성한 흑단나무를 깎아 옻칠을 입힌 북채. 휘두르면 묵직한 공명음이 난다.',
-          lore: '원혼의 기운을 흩뜨리는 퇴마 타악 의식의 핵심 도구.',
+          description: '신성한 은으로 특수 제련된 외과 절개도. 허공을 가르면 묵직한 공명음이 난다.',
+          lore: '수술대 위에서 떠도는 사악한 혼령을 잘라내는 퇴마 외과의의 핵심 메스.',
           iconName: 'Bell',
           collectedAtDepth: Math.round(Math.hypot(cx, cz)),
         };
@@ -1016,21 +1016,21 @@ export class InfiniteMazeEngine {
           mesh: instruments,
           relic: relicItem,
           type: 'relic',
-          name: '제례 대북과 징 거치대',
-          description: '[E] 대북 거치대 위의 흑단목 북채를 줍습니다.',
+          name: '중앙 수술대 도구 트레이',
+          description: '[E] 수술대 위의 은빛 외과 메스를 줍습니다.',
         });
       } else if (specificType === 9) {
-        // 10. Cursed Stone Well with Bamboo (저주받은 돌우물과 대나무)
+        // 10. Morgue Autopsy Drain & Freezer Pit (지하 영안실 시신 배수대)
         const well = AbandonedMansionAssets.createCursedWellCourtyard();
         group.add(well);
         walls.push({ minX: cx - 1.0, maxX: cx + 1.0, minZ: cz - 1.0, maxZ: cz + 1.0 });
 
         const relicItem: RelicItem = {
           id: `bucket_talisman_${gx}_${gz}`,
-          name: '우물 속에서 건져 올린 백옥 비녀',
+          name: '시신 안치대에서 찾은 은빛 유품 펜던트',
           category: 'curio',
-          description: '차디찬 우물물 속에서 발견된 은은한 광택의 백옥 비녀.',
-          lore: '우물에 빠져 목숨을 잃은 여인이 남긴 유일한 신표.',
+          description: '차디찬 영안실 냉동 배수구 속에서 발견된 은은한 광택의 은 펜던트.',
+          lore: '영안실에 버려진 무연고 사망자가 숨을 거두기 전까지 쥐고 있던 유일한 유품.',
           iconName: 'Sparkles',
           collectedAtDepth: Math.round(Math.hypot(cx, cz)),
         };
@@ -1039,21 +1039,21 @@ export class InfiniteMazeEngine {
           mesh: well,
           relic: relicItem,
           type: 'relic',
-          name: '저주받은 깊은 돌우물',
-          description: '[E] 두레박 속 백옥 비녀를 건집니다.',
+          name: '영안실 시신 세척 배수구',
+          description: '[E] 배수구 틈새 속 은빛 펜던트를 건집니다.',
         });
       } else if (specificType === 10) {
-        // 11. Silk Drapery & Tea Incense Chamber (비단 휘장과 차실)
+        // 11. Hospital Director's Office (병원장 집무실 및 진료 소파)
         const teaChamber = AbandonedMansionAssets.createSilkIncenseChamber();
         group.add(teaChamber);
         walls.push({ minX: cx - 0.8, maxX: cx + 0.8, minZ: cz - 1.8, maxZ: cz - 1.0 });
 
         const relicItem: RelicItem = {
           id: `incense_censer_${gx}_${gz}`,
-          name: '용 문양이 새겨진 백동 향로',
+          name: '병원장의 백동 청진기와 만년필',
           category: 'curio',
-          description: '찻상 위에 놓여 있던 고풍스러운 백동 향로. 내부에 마르지 않은 향가루가 남아 있다.',
-          lore: '폐가의 안온한 차실에서 불을 밝히던 귀한 백동 공예품.',
+          description: '원장 책상 위에 놓여 있던 고풍스러운 백동 청진기. 심장에 대면 기이한 속삭임이 들린다.',
+          lore: '폐병원의 어두운 비밀을 주도했던 악명 높은 원장의 진료 도구.',
           iconName: 'Sparkles',
           collectedAtDepth: Math.round(Math.hypot(cx, cz)),
         };
@@ -1062,11 +1062,11 @@ export class InfiniteMazeEngine {
           mesh: teaChamber,
           relic: relicItem,
           type: 'relic',
-          name: '비단 휘장 속 찻상과 향로',
-          description: '[E] 찻상 위의 백동 향로를 챙깁니다.',
+          name: '원장실 책상과 약품 수납함',
+          description: '[E] 책상 위의 백동 청진기를 챙깁니다.',
         });
       } else {
-        // 12. Talisman Sealed Chamber (부적으로 봉인된 결계방)
+        // 12. Biohazard Quarantine Sealed Chamber (생물학적 위험 결계 격리실)
         for (let t = -1; t <= 1; t++) {
           const tal = AbandonedMansionAssets.createTalisman(0.35, 0.65);
           tal.position.set(t * 1.4, 1.8, -half + 0.1);
@@ -1075,10 +1075,10 @@ export class InfiniteMazeEngine {
 
         const relicItem: RelicItem = {
           id: `bell_${gx}_${gz}`,
-          name: '무당의 녹슨 칠성방울',
+          name: '격리구역 의료용 비상 경보벨',
           category: 'ritual',
-          description: '흔들면 맑고도 서늘한 쇳소리가 울려 퍼지는 놋쇠 방울 다발.',
-          lore: '귀신을 부르거나 쫓아낼 때 쓰이던 주술 도구로, 폐가 속 원혼의 기척을 감지해낸다.',
+          description: '흔들면 맑고도 서늘한 경고음이 울려 퍼지는 놋쇠 비상벨 다발.',
+          lore: '병원 속 숨겨진 격리 구역에서 사악한 원혼의 침입을 알리던 퇴마 경보벨.',
           iconName: 'Bell',
           collectedAtDepth: Math.round(Math.hypot(cx, cz)),
         };
@@ -1087,8 +1087,8 @@ export class InfiniteMazeEngine {
           mesh: group,
           relic: relicItem,
           type: 'talisman',
-          name: '부적으로 봉인된 결계 벽면',
-          description: '[E] 칠성방울 유물을 수습합니다.',
+          name: '격리 결계로 봉인된 병동 벽면',
+          description: '[E] 의료용 비상 경보벨 유물을 수습합니다.',
         });
       }
     }
