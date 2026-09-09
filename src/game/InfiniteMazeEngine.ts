@@ -116,6 +116,7 @@ export class InfiniteMazeEngine {
   public bloodLevel: number = 0; // 0, 1, 2, 3 (부활할 때마다 화면 핏자국 증가)
   public nearestGhostDistance: number = 999; // 귀신 10미터 이하 접근 감지용
   public isPendingGameOver: boolean = false;
+  public isJumpscareActive: boolean = false;
   public isInvincible: boolean = false;
   public invincibilityTimer: number = 0;
 
@@ -1358,8 +1359,8 @@ export class InfiniteMazeEngine {
     // Continuously simulate atmospheric dust and cold ground mist particles
     this.updateAtmosphericParticles(delta);
 
-    // Invincibility countdown
-    if (this.invincibilityTimer > 0) {
+    // Invincibility countdown (paused during active jumpscare presentation)
+    if (!this.isJumpscareActive && this.invincibilityTimer > 0) {
       this.invincibilityTimer -= delta;
       if (this.invincibilityTimer <= 0) {
         this.isInvincible = false;
@@ -1368,7 +1369,7 @@ export class InfiniteMazeEngine {
     }
 
     // Safety revive check: if sanity drops to 0 and player has lives left, immediately revive on the spot!
-    if (this.sanity <= 0 && !this.isEscaped) {
+    if (!this.isJumpscareActive && this.sanity <= 0 && !this.isEscaped) {
       if (this.lives > 1) {
         this.revivePlayer();
       } else {
@@ -1380,67 +1381,70 @@ export class InfiniteMazeEngine {
     }
   }
 
-  // Push a ghost away by at least 20 meters from the player
-  public pushGhostFarAway(ghost: ActiveGhost, minDistance: number = 22.0) {
-    const pushDir = new THREE.Vector3().subVectors(ghost.pos, this.playerPos);
-    pushDir.y = 0;
-    if (pushDir.length() < 0.1) {
-      pushDir.set(Math.random() - 0.5, 0, Math.random() - 0.5);
-    }
-    pushDir.normalize();
+  // Banish a ghost away to a safe distant room chunk (at least 25~35 meters away)
+  public pushGhostFarAway(ghost: ActiveGhost, minDistance: number = 25.0) {
+    const playerGx = Math.round(this.playerPos.x / this.chunkSize);
+    const playerGz = Math.round(this.playerPos.z / this.chunkSize);
 
-    let currX = ghost.pos.x;
-    let currZ = ghost.pos.z;
+    // Pick a distant room quadrant 2~3 chunks away
+    const dx = (Math.random() > 0.5 ? 1 : -1) * (Math.random() > 0.5 ? 2 : 3);
+    const dz = (Math.random() > 0.5 ? 1 : -1) * (Math.random() > 0.5 ? 2 : 3);
 
-    // Step outward along push direction
-    for (let step = 0; step < 50; step++) {
-      const stepTargetX = currX + pushDir.x * 0.5;
-      const stepTargetZ = currZ + pushDir.z * 0.5;
-      const res = this.resolveGhostPosition(currX, currZ, stepTargetX, stepTargetZ);
-      currX = res.x;
-      currZ = res.z;
-      if (Math.hypot(currX - this.playerPos.x, currZ - this.playerPos.z) >= minDistance) {
-        break;
-      }
-    }
+    const safeX = (playerGx + dx) * this.chunkSize;
+    const safeZ = (playerGz + dz) * this.chunkSize;
 
-    // Guarantee that distance is at least 20 meters!
-    const currentDist = Math.hypot(currX - this.playerPos.x, currZ - this.playerPos.z);
-    if (currentDist < 20.0) {
-      const baseAngle = Math.atan2(pushDir.z, pushDir.x);
-      for (let i = 0; i < 16; i++) {
-        const testAngle = baseAngle + (i % 2 === 0 ? 1 : -1) * Math.floor(i / 2) * (Math.PI / 8);
-        const testDist = minDistance + (i % 3) * 2.0;
-        const testX = this.playerPos.x + Math.cos(testAngle) * testDist;
-        const testZ = this.playerPos.z + Math.sin(testAngle) * testDist;
-        const resolved = this.resolveGhostPosition(testX, testZ, testX + 0.1, testZ + 0.1);
-        if (Math.hypot(resolved.x - this.playerPos.x, resolved.z - this.playerPos.z) >= 20.0) {
-          currX = resolved.x;
-          currZ = resolved.z;
-          break;
-        }
-      }
-    }
-
-    ghost.pos.set(currX, 0, currZ);
+    ghost.pos.set(safeX, 0, safeZ);
     ghost.targetPos.copy(ghost.pos);
-    ghost.mesh.position.set(currX, 0, currZ);
-    ghost.attackCooldown = 8.0; // 8초 동안 재공격 금지
-    ghost.wanderTimer = 6.0;
+    ghost.originX = safeX;
+    ghost.originZ = safeZ;
+    ghost.mesh.position.set(safeX, 0, safeZ);
+    ghost.attackCooldown = 15.0; // 15초간 재공격 절대 불가
+    ghost.soundCooldown = 8.0;
+    ghost.wanderTimer = 10.0;
     ghost.state = 'wandering';
   }
 
-  // Revive player on the spot, restore sanity & stamina, increment bloodLevel, and push ghosts 25m+ away!
+  // Banish all ghosts away into separate distant quadrants (at least 25~35m away)
+  public banishAllGhosts(minDistance: number = 25.0) {
+    const playerGx = Math.round(this.playerPos.x / this.chunkSize);
+    const playerGz = Math.round(this.playerPos.z / this.chunkSize);
+
+    const quadrants = [
+      { dx: 2, dz: 2 },
+      { dx: -2, dz: -2 },
+      { dx: 2, dz: -2 },
+      { dx: -2, dz: 2 },
+    ];
+
+    this.dynamicGhosts.forEach((ghost, idx) => {
+      const q = quadrants[idx % quadrants.length];
+      const safeX = (playerGx + q.dx) * this.chunkSize;
+      const safeZ = (playerGz + q.dz) * this.chunkSize;
+
+      ghost.pos.set(safeX, 0, safeZ);
+      ghost.targetPos.copy(ghost.pos);
+      ghost.originX = safeX;
+      ghost.originZ = safeZ;
+      ghost.mesh.position.set(safeX, 0, safeZ);
+      ghost.attackCooldown = 15.0; // 15초 동안 재공격 금지
+      ghost.soundCooldown = 8.0;
+      ghost.wanderTimer = 10.0;
+      ghost.state = 'wandering';
+    });
+  }
+
+  // Revive player on the spot, restore sanity & stamina, increment bloodLevel, and banish ghosts 25m+ away!
   public revivePlayer(triggeringGhost?: ActiveGhost) {
     if (this.lives <= 1) return;
 
     this.lives--;
     this.extraLives = Math.max(0, this.lives - 1);
-    this.bloodLevel = Math.min(3, this.bloodLevel + 1);
+    this.bloodLevel = Math.min(3, 3 - this.lives); // 1st death: 1단계, 2nd death: 2단계
     this.sanity = this.maxSanity; // 그 자리에서 정신력 100% 완전 회복!
     this.stamina = this.maxStamina; // 스태미나 200 완전 충전!
     this.isInvincible = true;
-    this.invincibilityTimer = 6.0; // 6초간 성스러운 가호 무적 결계 부여 (3초 점프스케어 + 부활 후 3초 무적)
+    this.invincibilityTimer = 8.0; // 8초간 성스러운 가호 무적 결계 부여
+    this.isPendingGameOver = false;
 
     // Audio: Holy resurrection & talisman chant
     mazeAudio.playItemAcquire();
@@ -1449,7 +1453,7 @@ export class InfiniteMazeEngine {
     // Visual: Divine burst of holy golden light on viewmodel / surrounding area
     if (this.vmSwordLight) {
       this.vmSwordLight.color.setHex(0xffdd44);
-      this.vmSwordLight.intensity = 6.5;
+      this.vmSwordLight.intensity = 7.0;
       setTimeout(() => {
         if (this.vmSwordLight) {
           this.vmSwordLight.color.setHex(0x55ccff);
@@ -1458,32 +1462,20 @@ export class InfiniteMazeEngine {
       }, 1600);
     }
 
-    // Push back the triggering ghost by 25+ meters
-    if (triggeringGhost) {
-      this.pushGhostFarAway(triggeringGhost, 25.0);
-    }
+    // Banish all ghosts far away into distant rooms (25~35m away)
+    this.banishAllGhosts(26.0);
 
-    // Also push back all other ghosts within 20 meters by 25+ meters
-    this.dynamicGhosts.forEach((g) => {
-      if (g !== triggeringGhost) {
-        const d = g.pos.distanceTo(this.playerPos);
-        if (d < 20.0) {
-          this.pushGhostFarAway(g, 25.0);
-        }
-      }
-    });
-
-    // If in boss fight, blast boss backwards 20 meters and stagger him!
+    // If in boss fight, blast boss backwards 25 meters and stagger him!
     if (this.isBossFightActive && this.bossMesh) {
       const bossDir = new THREE.Vector3().subVectors(this.bossPos, this.playerPos).setY(0);
       if (bossDir.length() < 0.1) bossDir.set(0, 0, -1);
       bossDir.normalize();
-      this.bossPos.addScaledVector(bossDir, 21.0);
+      this.bossPos.addScaledVector(bossDir, 25.0);
       this.bossMesh.position.copy(this.bossPos);
       this.bossState.isStaggered = true;
-      this.bossStaggerTimer = 4.0;
+      this.bossStaggerTimer = 5.0;
       this.bossState.isInvulnerable = false;
-      this.bossState.attackWarning = '⚡ [신령의 천벌!] 부활의 성스러운 파동으로 어둑시니가 20m 튕겨져 나가 기절했습니다!';
+      this.bossState.attackWarning = '⚡ [신령의 천벌!] 부활의 성스러운 파동으로 어둑시니가 25m 튕겨져 나가 기절했습니다!';
     }
 
     // Haunted Event announcement
@@ -1501,6 +1493,7 @@ export class InfiniteMazeEngine {
 
   // Trigger violent ghost jumpscare event with audio screech, camera shake & strobe blackout
   public triggerJumpscare(variant: 'white_maiden' | 'shadow_specter' | 'boss_demon', ghostName: string, damage: number = 20) {
+    this.isJumpscareActive = true;
     this.cameraShakeIntensity = 1.45;
 
     // Flashlight momentary blackout / violent flicker
@@ -1526,6 +1519,21 @@ export class InfiniteMazeEngine {
         timestamp: Date.now(),
         damage,
       });
+    }
+  }
+
+  // Complete jumpscare when the 3-second overlay completes
+  public endJumpscare() {
+    this.isJumpscareActive = false;
+    if (this.lives > 0) {
+      this.isInvincible = true;
+      this.invincibilityTimer = 8.0; // 점프스케어 종료 후 온전한 8초간 무적 보호 결계 지속
+      this.sanity = Math.max(this.sanity, 100);
+      this.stamina = Math.max(this.stamina, 200);
+      this.banishAllGhosts(26.0);
+    }
+    if (this.onStatsUpdate) {
+      this.onStatsUpdate();
     }
   }
 
@@ -2618,6 +2626,9 @@ export class InfiniteMazeEngine {
 
   // Dynamic Ghosts AI update: floating, wandering, wall collision, banishment respawn & slower than player
   private updateGhosts(delta: number) {
+    // Completely freeze ghost movements, attacks, and proximity updates while jumpscare is actively playing
+    if (this.isJumpscareActive) return;
+
     for (let i = 0; i < this.dynamicGhosts.length; i++) {
       const ghost = this.dynamicGhosts[i];
 
@@ -2640,7 +2651,7 @@ export class InfiniteMazeEngine {
           ghost.mesh.visible = true;
           ghost.state = 'wandering';
           ghost.wanderTimer = 3.0;
-          ghost.attackCooldown = 4.0;
+          ghost.attackCooldown = 6.0;
 
           mazeAudio.playGhostPresence();
           if (this.onHauntedEvent) {
@@ -2657,6 +2668,17 @@ export class InfiniteMazeEngine {
 
       const dist = ghost.pos.distanceTo(this.playerPos);
 
+      // Holy aura repulsion during resurrection invincibility (push ghost back & prevent attack)
+      if (this.isInvincible && dist < 6.5) {
+        ghost.attackCooldown = Math.max(ghost.attackCooldown, 5.0);
+        ghost.state = 'wandering';
+        const repelDir = new THREE.Vector3().subVectors(ghost.pos, this.playerPos).setY(0);
+        if (repelDir.length() < 0.1) repelDir.set(1, 0, 0);
+        repelDir.normalize();
+        ghost.pos.addScaledVector(repelDir, 5.5 * delta);
+        ghost.mesh.position.copy(ghost.pos);
+      }
+
       ghost.bobTimer += delta * 3.0;
       ghost.soundCooldown -= delta;
       ghost.attackCooldown -= delta;
@@ -2671,10 +2693,10 @@ export class InfiniteMazeEngine {
         aura.intensity = 1.2 + Math.sin(ghost.bobTimer * 4.5) * 0.6;
       }
 
-      // If player travelled far away (>26m), reposition ghost into a nearby active room floor safely
-      if (dist > 26.0) {
+      // If player travelled extremely far (>38m) and ghost is not on attack cooldown, reposition safely
+      if (dist > 38.0 && ghost.attackCooldown <= 0) {
         const angle = (i / this.dynamicGhosts.length) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
-        const spawnDist = this.chunkSize * (1.6 + (i % 3) * 0.5);
+        const spawnDist = this.chunkSize * (2.0 + (i % 3) * 0.5);
         const targetX = this.playerPos.x + Math.cos(angle) * spawnDist;
         const targetZ = this.playerPos.z + Math.sin(angle) * spawnDist;
         const safePos = this.resolveGhostPosition(targetX, targetZ, targetX, targetZ);
@@ -2684,7 +2706,7 @@ export class InfiniteMazeEngine {
         ghost.originX = safePos.x;
         ghost.originZ = safePos.z;
         ghost.state = 'wandering';
-        ghost.wanderTimer = 3.0;
+        ghost.wanderTimer = 4.0;
         continue;
       }
 
@@ -2729,21 +2751,21 @@ export class InfiniteMazeEngine {
 
         // Close contact scare / Jumpscare attack (within 1.6m)
         if (dist < 1.6 && ghost.attackCooldown <= 0) {
-          if (this.isInvincible) {
-            ghost.attackCooldown = 2.0;
+          if (this.isInvincible || this.isJumpscareActive) {
+            ghost.attackCooldown = 4.0;
             return;
           }
-          ghost.attackCooldown = 8.0;
+          ghost.attackCooldown = 15.0;
 
           const variant = ghost.variant === 'shadow_specter' ? 'shadow_specter' : 'white_maiden';
           const ghostName = ghost.name || '원혼';
 
-          // Trigger terrifying jumpscare (shriek audio, screen strobe, face lunge & camera shake - 3초간 지속)
-          this.triggerJumpscare(variant, ghostName, 30);
-
-          // Caught by ghost: If player has lives remaining (> 1), consume life and revive on the spot!
+          // Caught by ghost: Check lives system
           if (this.lives > 1) {
+            // Player has lives remaining: revive and consume 1 life!
             this.revivePlayer(ghost);
+            // Trigger terrifying jumpscare (shriek audio, screen strobe, face lunge & camera shake - 3초간 지속)
+            this.triggerJumpscare(variant, ghostName, 30);
           } else {
             // Fatal capture on last remaining life:
             this.lives = 0;
@@ -2751,7 +2773,8 @@ export class InfiniteMazeEngine {
             this.bloodLevel = 3;
             this.sanity = 0;
             this.isPendingGameOver = true;
-            this.pushGhostFarAway(ghost, 25.0);
+            this.banishAllGhosts(26.0);
+            this.triggerJumpscare(variant, ghostName, 30);
             if (this.onHauntedEvent) {
               this.onHauntedEvent({
                 id: `ghost_attack_${Date.now()}_${ghost.id}`,
@@ -2762,6 +2785,7 @@ export class InfiniteMazeEngine {
             }
           }
           if (this.onStatsUpdate) this.onStatsUpdate();
+          return;
         }
       } else {
         // Wandering around origin room/chunk area at slow pacing
@@ -2800,6 +2824,8 @@ export class InfiniteMazeEngine {
 
   // Ghost check and sanity drain in pitch darkness
   private updateSanityAndHorror(delta: number) {
+    if (this.isJumpscareActive) return;
+
     // Battery and light handling (balanced slow drain when flashlight is ON)
     if (this.lightMode === 'flashlight') {
       this.battery = Math.max(0, this.battery - delta * 0.12);
@@ -2808,8 +2834,8 @@ export class InfiniteMazeEngine {
       this.flashlight.intensity = 8.5 * this.brightnessMultiplier * batRatio;
     }
 
-    // Sanity drain in pitch dark
-    if (this.lightMode === 'off') {
+    // Sanity drain in pitch dark (prevented while player has holy invincibility protection)
+    if (this.lightMode === 'off' && !this.isInvincible) {
       this.sanity = Math.max(0, this.sanity - delta * 2.5);
     }
 
@@ -2839,11 +2865,11 @@ export class InfiniteMazeEngine {
       this.maxSanity
     );
 
-    // Proximity sanity drain from any nearby ghost
+    // Proximity sanity drain from any nearby ghost (prevented while invincible)
     this.ghostCheckTimer += delta;
     if (this.ghostCheckTimer > 0.8) {
       this.ghostCheckTimer = 0;
-      if (nearestGhostDist < 6.5) {
+      if (nearestGhostDist < 6.5 && !this.isInvincible) {
         this.sanity = Math.max(0, this.sanity - 4);
       }
     }

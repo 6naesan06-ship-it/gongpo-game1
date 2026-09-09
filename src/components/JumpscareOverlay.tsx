@@ -15,10 +15,17 @@ export const JumpscareOverlay: React.FC<JumpscareOverlayProps> = ({ event, onCom
   const [isFadingOut, setIsFadingOut] = useState(false);
   const [glitchPhase, setGlitchPhase] = useState(0);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const onCompleteRef = useRef(onComplete);
+
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
 
   useEffect(() => {
     if (!event) {
       setVisible(false);
+      setShowFace(false);
+      setIsFadingOut(false);
       return;
     }
 
@@ -49,7 +56,9 @@ export const JumpscareOverlay: React.FC<JumpscareOverlayProps> = ({ event, onCom
     // 3. Complete jumpscare and clear from screen after 3.2s
     const completeTimer = setTimeout(() => {
       setVisible(false);
-      if (onComplete) onComplete();
+      if (onCompleteRef.current) {
+        onCompleteRef.current();
+      }
     }, 3200);
 
     // Draw procedural blood splatters and dripping blood streaks on canvas
@@ -96,7 +105,7 @@ export const JumpscareOverlay: React.FC<JumpscareOverlayProps> = ({ event, onCom
       clearTimeout(hideFaceTimer);
       clearTimeout(completeTimer);
     };
-  }, [event, onComplete]);
+  }, [event]);
 
   if (!visible || !event) return null;
 

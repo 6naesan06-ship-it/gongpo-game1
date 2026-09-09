@@ -97,6 +97,7 @@ export default function App() {
   } | null>(null);
   const [hauntedAlert, setHauntedAlert] = useState<HauntedEvent | null>(null);
   const [currentJumpscare, setCurrentJumpscare] = useState<JumpscareEvent | null>(null);
+  const currentJumpscareRef = useRef<JumpscareEvent | null>(null);
 
   // Initialize and mount 3D Infinite Maze Engine
   useEffect(() => {
@@ -121,6 +122,7 @@ export default function App() {
     };
 
     engine.onJumpscare = (event) => {
+      currentJumpscareRef.current = event;
       setCurrentJumpscare(event);
     };
 
@@ -174,12 +176,16 @@ export default function App() {
           });
         }
 
-        // Check Defeat condition: Only triggers when player has exhausted all lives (0 lives left) and sanity reaches 0, and no active jumpscare!
-        if (engineRef.current.lives <= 0 && engineRef.current.sanity <= 0 && !engineRef.current.isEscaped) {
-          if (!currentJumpscare) {
-            setGameStatus('game_over');
-            mazeAudio.playHorrorStinger();
-          }
+        // Check Defeat condition: ONLY triggers when player has completely exhausted all 3 lives (lives <= 0) and is NOT in a jumpscare
+        if (
+          engineRef.current.lives <= 0 &&
+          engineRef.current.sanity <= 0 &&
+          !engineRef.current.isEscaped &&
+          !engineRef.current.isJumpscareActive &&
+          !currentJumpscareRef.current
+        ) {
+          setGameStatus('game_over');
+          mazeAudio.playHorrorStinger();
         }
       }
     }, 60);
@@ -243,6 +249,7 @@ export default function App() {
   const handleRestart = () => {
     setEscapeModal(null);
     setCurrentJumpscare(null);
+    currentJumpscareRef.current = null;
     setLives(3);
     setBloodLevel(0);
     setNearestGhostDist(999);
@@ -520,9 +527,14 @@ export default function App() {
         event={currentJumpscare}
         onComplete={() => {
           setCurrentJumpscare(null);
-          if (engineRef.current && (engineRef.current.lives <= 0 || engineRef.current.isPendingGameOver)) {
-            setGameStatus('game_over');
-            mazeAudio.playHorrorStinger();
+          currentJumpscareRef.current = null;
+          if (engineRef.current) {
+            engineRef.current.endJumpscare();
+            // ONLY trigger game over if the player has exhausted ALL 3 lives!
+            if (engineRef.current.lives <= 0) {
+              setGameStatus('game_over');
+              mazeAudio.playHorrorStinger();
+            }
           }
         }}
       />
