@@ -29,31 +29,28 @@ export const JumpscareOverlay: React.FC<JumpscareOverlayProps> = ({ event, onCom
     // Guaranteed scream audio trigger on jumpscare presentation
     mazeAudio.playGhostJumpscareScream(event.variant);
 
-    // 1. Strobe / Glitch flicker cycle during the initial ghost lunge (first 800ms)
+    // 1. Strobe / Glitch flicker cycle during the ghost jumpscare attack
     const flickerInterval = setInterval(() => {
       setGlitchPhase((prev) => (prev + 1) % 4);
     }, 45);
 
-    // Stop intense flicker after 800ms
+    // Stop strobe flicker at 2800ms
     const stopFlickerTimer = setTimeout(() => {
       clearInterval(flickerInterval);
-    }, 800);
+    }, 2800);
 
-    // 2. Hide lunging ghost face after 850ms so blood covers the screen without obscuring gameplay
+    // 2. Hide lunging ghost face and start fade-out at EXACTLY 3.0 seconds (3000ms)
+    // [요청사항]: "귀신 사진 뜨는건 3초만 하고 사라지게 해줘"
     const hideFaceTimer = setTimeout(() => {
       setShowFace(false);
-    }, 850);
-
-    // 3. Start smooth fade-out of the blood splatter at 2000ms (fades over remaining 1000ms)
-    const startFadeTimer = setTimeout(() => {
       setIsFadingOut(true);
-    }, 2000);
+    }, 3000);
 
-    // 4. Exactly 3 seconds (3000ms): Complete jumpscare & blood effect and clear from screen
+    // 3. Complete jumpscare and clear from screen after 3.2s
     const completeTimer = setTimeout(() => {
       setVisible(false);
       if (onComplete) onComplete();
-    }, 3000);
+    }, 3200);
 
     // Draw procedural blood splatters and dripping blood streaks on canvas
     const canvas = canvasRef.current;
@@ -97,7 +94,6 @@ export const JumpscareOverlay: React.FC<JumpscareOverlayProps> = ({ event, onCom
       clearInterval(flickerInterval);
       clearTimeout(stopFlickerTimer);
       clearTimeout(hideFaceTimer);
-      clearTimeout(startFadeTimer);
       clearTimeout(completeTimer);
     };
   }, [event, onComplete]);
@@ -139,12 +135,12 @@ export const JumpscareOverlay: React.FC<JumpscareOverlayProps> = ({ event, onCom
       {/* 2. Procedural Blood Splatter & Scratch Canvas (Visible for full 3s, fading out in the last second) */}
       <canvas ref={canvasRef} className="absolute inset-0 z-15 pointer-events-none opacity-85" />
 
-      {/* 3. Terrifying Lunging Ghost Face (Active only during the first 850ms) */}
+      {/* 3. Terrifying Lunging Ghost Face (Visible for full 3.0 seconds) */}
       {showFace && (
         <div
           className="relative z-20 flex items-center justify-center w-full h-full"
           style={{
-            animation: 'jumpscareLungeIn 0.85s cubic-bezier(0.1, 0.9, 0.2, 1) forwards',
+            animation: 'jumpscareLungeIn 3.0s cubic-bezier(0.1, 0.9, 0.2, 1) forwards',
           }}
         >
           <div className="relative max-w-2xl max-h-[85vh] w-auto h-auto flex items-center justify-center">

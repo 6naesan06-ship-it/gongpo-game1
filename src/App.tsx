@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { InfiniteMazeEngine } from './game/InfiniteMazeEngine';
 import { MazeHUD } from './components/MazeHUD';
 import { JumpscareOverlay } from './components/JumpscareOverlay';
+import { ScreenBloodOverlay } from './components/ScreenBloodOverlay';
 import { mazeAudio } from './audio/mazeHorrorAudio';
 import { RelicItem, HauntedEvent, InventoryItem, JumpscareEvent } from './types';
 import {
@@ -65,6 +66,9 @@ export default function App() {
   const [activeSlotIndex, setActiveSlotIndex] = useState<number>(0);
   const [exorcisedGhostCount, setExorcisedGhostCount] = useState<number>(0);
   const [extraLives, setExtraLives] = useState<number>(2);
+  const [lives, setLives] = useState<number>(3);
+  const [bloodLevel, setBloodLevel] = useState<number>(0);
+  const [nearestGhostDist, setNearestGhostDist] = useState<number>(999);
   const [isInvincible, setIsInvincible] = useState<boolean>(false);
   const [escapeModal, setEscapeModal] = useState<{
     method: 'relics' | 'kills' | 'boss';
@@ -129,6 +133,11 @@ export default function App() {
       setInventory([...engineRef.current.inventory]);
       setActiveSlotIndex(engineRef.current.activeSlotIndex);
       setExorcisedGhostCount(engineRef.current.exorcisedGhostCount);
+      setLives(engineRef.current.lives);
+      setExtraLives(engineRef.current.extraLives);
+      setBloodLevel(engineRef.current.bloodLevel);
+      setNearestGhostDist(engineRef.current.nearestGhostDistance);
+      setIsInvincible(engineRef.current.isInvincible);
     };
 
     // State sync loop
@@ -146,7 +155,11 @@ export default function App() {
         setActiveSlotIndex(engineRef.current.activeSlotIndex);
         setExorcisedGhostCount(engineRef.current.exorcisedGhostCount);
         setExtraLives(engineRef.current.extraLives);
+        setLives(engineRef.current.lives);
+        setBloodLevel(engineRef.current.bloodLevel);
+        setNearestGhostDist(engineRef.current.nearestGhostDistance);
         setIsInvincible(engineRef.current.isInvincible);
+        setCollectedRelics([...engineRef.current.collectedRelics]);
 
         // Check Victory escape condition (Only Eoduksini Boss defeat escapes!)
         if (engineRef.current.isEscaped && !escapeModal) {
@@ -161,10 +174,12 @@ export default function App() {
           });
         }
 
-        // Check Defeat condition: Only triggers when player has exhausted all extra lives (0 lives left) and sanity reaches 0!
-        if (engineRef.current.sanity <= 0 && engineRef.current.extraLives <= 0 && !engineRef.current.isEscaped) {
-          setGameStatus('game_over');
-          mazeAudio.playHorrorStinger();
+        // Check Defeat condition: Only triggers when player has exhausted all lives (0 lives left) and sanity reaches 0, and no active jumpscare!
+        if (engineRef.current.lives <= 0 && engineRef.current.sanity <= 0 && !engineRef.current.isEscaped) {
+          if (!currentJumpscare) {
+            setGameStatus('game_over');
+            mazeAudio.playHorrorStinger();
+          }
         }
       }
     }, 60);
@@ -210,6 +225,9 @@ export default function App() {
     setCollectedRelics([]);
     setExorcisedGhostCount(0);
     setExtraLives(2);
+    setLives(3);
+    setBloodLevel(0);
+    setNearestGhostDist(999);
     setIsInvincible(false);
     setEscapeModal(null);
     setCurrentJumpscare(null);
@@ -225,6 +243,9 @@ export default function App() {
   const handleRestart = () => {
     setEscapeModal(null);
     setCurrentJumpscare(null);
+    setLives(3);
+    setBloodLevel(0);
+    setNearestGhostDist(999);
     setGameStatus('intro');
   };
 
@@ -308,46 +329,53 @@ export default function App() {
 
       {/* Playing HUD Overlay */}
       {gameStatus === 'playing' && (
-        <MazeHUD
-          sanity={sanity}
-          maxSanity={maxSanity}
-          stamina={stamina}
-          maxStamina={maxStamina}
-          battery={battery}
-          lightMode={lightMode}
-          depthMeters={depthMeters}
-          roomsExplored={roomsExplored}
-          collectedRelics={collectedRelics}
-          inventory={inventory}
-          activeSlotIndex={activeSlotIndex}
-          onSelectSlot={handleSelectSlot}
-          onPrevSlot={handlePrevSlot}
-          onNextSlot={handleNextSlot}
-          onUseActiveItem={handleUseActiveItem}
-          exorcisedGhostCount={exorcisedGhostCount}
-          extraLives={extraLives}
-          isInvincible={isInvincible}
-          onChallengeBoss={handleChallengeBoss}
-          escapeModal={escapeModal}
-          onRestart={handleRestart}
-          hoveredTarget={hoveredTarget}
-          onToggleLight={handleToggleLight}
-          onInspect={handleInspectCurrent}
-          soundEnabled={soundEnabled}
-          onToggleSound={handleToggleSound}
-          investigationModal={investigationModal}
-          onCloseInvestigation={handleCloseInvestigation}
-          hauntedAlert={hauntedAlert}
-          onVirtualMove={handleVirtualMove}
-          onVirtualLook={handleVirtualLook}
-          onSprintToggle={handleSprintToggle}
-          playerYaw={playerYaw}
-          brightness={brightness}
-          onChangeBrightness={handleChangeBrightness}
-          sensitivity={sensitivity}
-          onChangeSensitivity={handleChangeSensitivity}
-          onReleasePointerLock={handleReleasePointerLock}
-        />
+        <>
+          <ScreenBloodOverlay bloodLevel={bloodLevel} />
+          <MazeHUD
+            sanity={sanity}
+            maxSanity={maxSanity}
+            stamina={stamina}
+            maxStamina={maxStamina}
+            battery={battery}
+            lightMode={lightMode}
+            depthMeters={depthMeters}
+            roomsExplored={roomsExplored}
+            collectedRelics={collectedRelics}
+            inventory={inventory}
+            activeSlotIndex={activeSlotIndex}
+            onSelectSlot={handleSelectSlot}
+            onPrevSlot={handlePrevSlot}
+            onNextSlot={handleNextSlot}
+            onUseActiveItem={handleUseActiveItem}
+            exorcisedGhostCount={exorcisedGhostCount}
+            bossState={engineRef.current?.bossState || { active: false, name: '어둑시니', maxHp: 15, currentHp: 15, phase: 1, isStaggered: false, isInvulnerable: true }}
+            lives={lives}
+            bloodLevel={bloodLevel}
+            nearestGhostDistance={nearestGhostDist}
+            extraLives={extraLives}
+            isInvincible={isInvincible}
+            onChallengeBoss={handleChallengeBoss}
+            escapeModal={escapeModal}
+            onRestart={handleRestart}
+            hoveredTarget={hoveredTarget}
+            onToggleLight={handleToggleLight}
+            onInspect={handleInspectCurrent}
+            soundEnabled={soundEnabled}
+            onToggleSound={handleToggleSound}
+            investigationModal={investigationModal}
+            onCloseInvestigation={handleCloseInvestigation}
+            hauntedAlert={hauntedAlert}
+            onVirtualMove={handleVirtualMove}
+            onVirtualLook={handleVirtualLook}
+            onSprintToggle={handleSprintToggle}
+            playerYaw={playerYaw}
+            brightness={brightness}
+            onChangeBrightness={handleChangeBrightness}
+            sensitivity={sensitivity}
+            onChangeSensitivity={handleChangeSensitivity}
+            onReleasePointerLock={handleReleasePointerLock}
+          />
+        </>
       )}
 
       {/* Intro / Start Screen */}
@@ -490,7 +518,13 @@ export default function App() {
       {/* Terrifying Jumpscare Overlay on Ghost Attacks */}
       <JumpscareOverlay
         event={currentJumpscare}
-        onComplete={() => setCurrentJumpscare(null)}
+        onComplete={() => {
+          setCurrentJumpscare(null);
+          if (engineRef.current && (engineRef.current.lives <= 0 || engineRef.current.isPendingGameOver)) {
+            setGameStatus('game_over');
+            mazeAudio.playHorrorStinger();
+          }
+        }}
       />
     </div>
   );

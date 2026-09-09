@@ -48,6 +48,9 @@ interface MazeHUDProps {
   onUseActiveItem: () => void;
   exorcisedGhostCount: number;
   bossState: BossState;
+  lives?: number;
+  bloodLevel?: number;
+  nearestGhostDistance?: number;
   extraLives?: number;
   maxExtraLives?: number;
   isInvincible?: boolean;
@@ -98,6 +101,9 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
   onUseActiveItem,
   exorcisedGhostCount,
   bossState,
+  lives = 3,
+  bloodLevel = 0,
+  nearestGhostDistance = 999,
   extraLives = 2,
   isInvincible = false,
   onChallengeBoss,
@@ -144,9 +150,10 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
   const isLowSanity = sanityPercent <= 30;
   const lowSanitySeverity = isLowSanity ? Math.min(1, Math.max(0, (30 - sanityPercent) / 30)) : 0;
   const isBossFight = bossState && bossState.active;
-  const hasTalisman = inventory.some((i) => i.id === 'sealing_talisman' && i.unlocked);
-  const hasSword = inventory.some((i) => (i.id === 'exorcism_sword' || i.id === 'sain_sword') && i.unlocked);
+  const hasTalisman = inventory.some((i) => (i.id === 'sealing_talisman' || i.id === 'talisman_sacred' || i.iconType === 'talisman') && i.unlocked);
+  const hasSword = inventory.some((i) => (i.id === 'exorcism_sword' || i.id === 'sain_sword' || i.id === 'sword_sacred' || i.iconType === 'sword') && i.unlocked);
   const canChallengeBoss = collectedRelics.length >= 20 && hasTalisman && hasSword;
+  const currentLives = lives !== undefined ? lives : (extraLives + 1);
 
   // ESC / Enter / Space / E 키로 조사창 신속 닫기
   useEffect(() => {
@@ -202,6 +209,22 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
             />
           )}
         </>
+      )}
+
+      {/* 2.5 Ghost Proximity Screen Perimeter Warning Strobe (Within 10m) */}
+      {nearestGhostDistance <= 10.0 && !isBossFight && (
+        <div
+          className={`absolute inset-0 pointer-events-none z-[4] transition-all duration-200 ${
+            nearestGhostDistance <= 4.0
+              ? 'border-[12px] sm:border-[20px] border-red-600/70 shadow-[inset_0_0_90px_rgba(220,38,38,0.7)] animate-bounce'
+              : nearestGhostDistance <= 7.0
+              ? 'border-[8px] sm:border-[14px] border-rose-600/50 shadow-[inset_0_0_60px_rgba(244,63,94,0.5)] animate-pulse'
+              : 'border-[6px] sm:border-[10px] border-amber-600/35 shadow-[inset_0_0_40px_rgba(245,158,11,0.35)] animate-pulse'
+          }`}
+          style={{
+            animationDuration: nearestGhostDistance <= 4.0 ? '0.35s' : nearestGhostDistance <= 7.0 ? '0.7s' : '1.2s',
+          }}
+        />
       )}
 
       {/* 3. Top Header Status Bar & Boss Health Bar */}
@@ -261,24 +284,24 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
               </div>
             </div>
 
-            {/* Lives & Resurrection Indicator (목숨 2개 추가: 총 3목숨, 제자리 부활 2회, 귀신 20m 격퇴) */}
+            {/* Lives & Resurrection Indicator (총 3목숨, 제자리 부활 2회, 핏자국 시스템) */}
             <div
               className={`flex items-center gap-2 px-3.5 py-1.5 rounded-2xl backdrop-blur-md shadow-lg border transition-all duration-300 font-mono ${
                 isInvincible
                   ? 'bg-amber-950/90 border-amber-400 ring-2 ring-amber-400/50 shadow-[0_0_15px_rgba(245,158,11,0.5)] animate-pulse'
-                  : extraLives === 0
-                  ? 'bg-red-950/80 border-red-700/80 text-red-300'
+                  : currentLives <= 1
+                  ? 'bg-red-950/90 border-red-600 text-red-300 animate-pulse'
                   : 'bg-neutral-950/85 border-neutral-800 text-neutral-200'
               }`}
             >
-              <ShieldAlert className={`w-4 h-4 ${extraLives === 0 ? 'text-red-500' : 'text-rose-500'}`} />
+              <Heart className={`w-4 h-4 ${currentLives <= 1 ? 'text-red-500 animate-bounce' : 'text-rose-500'}`} />
               <span className="text-[11px] text-neutral-400">목숨:</span>
               <div className="flex items-center gap-1.5">
-                {[0, 1, 2].map((idx) => {
-                  const hasLife = idx <= extraLives;
+                {[1, 2, 3].map((num) => {
+                  const hasLife = num <= currentLives;
                   return (
                     <Heart
-                      key={idx}
+                      key={num}
                       className={`w-3.5 h-3.5 transition-all duration-300 ${
                         hasLife
                           ? 'text-rose-500 fill-rose-500 drop-shadow-[0_0_6px_rgba(244,63,94,0.9)]'
@@ -292,17 +315,22 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
                 className={`text-[11px] font-bold ${
                   isInvincible
                     ? 'text-amber-300 animate-pulse'
-                    : extraLives > 0
+                    : currentLives > 1
                     ? 'text-rose-400'
                     : 'text-red-400'
                 }`}
               >
                 {isInvincible
-                  ? '🛡️ 무적 가호 (귀신 20m 격퇴됨)'
-                  : extraLives > 0
-                  ? `(부활 ${extraLives}회 가능)`
-                  : '⚠️ 마지막 목숨!'}
+                  ? '🛡️ 부활 무적 가호 (원혼 격퇴)'
+                  : currentLives > 1
+                  ? `${currentLives}개 (부활 ${currentLives - 1}회 가능)`
+                  : '⚠️ 마지막 1목숨!'}
               </span>
+              {bloodLevel > 0 && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-red-950/90 border border-red-700 text-red-300 font-bold">
+                  핏자국 {bloodLevel}단계
+                </span>
+              )}
             </div>
           </div>
 
@@ -489,6 +517,125 @@ export const MazeHUD: React.FC<MazeHUDProps> = ({
             )}
           </div>
         )}
+
+        {/* 🚨 GHOST PROXIMITY WARNING LIGHT (원혼 10m 이내 접근 경고등) */}
+        {nearestGhostDistance <= 10.0 && !isBossFight && (
+          <div
+            id="ghost-proximity-warning-beacon"
+            className={`self-center w-full max-w-xl px-4 py-2 rounded-2xl backdrop-blur-xl border flex items-center justify-between gap-3 shadow-2xl transition-all duration-200 font-mono ${
+              nearestGhostDistance <= 4.0
+                ? 'bg-red-950/95 border-red-500 text-white shadow-[0_0_35px_rgba(239,68,68,0.85)] animate-bounce ring-2 ring-red-500'
+                : nearestGhostDistance <= 7.0
+                ? 'bg-rose-950/90 border-rose-600 text-rose-100 shadow-[0_0_25px_rgba(244,63,94,0.65)] animate-pulse ring-1 ring-rose-500'
+                : 'bg-amber-950/85 border-amber-600 text-amber-200 shadow-[0_0_20px_rgba(245,158,11,0.45)] animate-pulse'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <span className="relative flex h-3.5 w-3.5">
+                <span
+                  className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                    nearestGhostDistance <= 4.0
+                      ? 'bg-red-500'
+                      : nearestGhostDistance <= 7.0
+                      ? 'bg-rose-500'
+                      : 'bg-amber-400'
+                  }`}
+                />
+                <span
+                  className={`relative inline-flex rounded-full h-3.5 w-3.5 ${
+                    nearestGhostDistance <= 4.0
+                      ? 'bg-red-600'
+                      : nearestGhostDistance <= 7.0
+                      ? 'bg-rose-600'
+                      : 'bg-amber-500'
+                  }`}
+                />
+              </span>
+              <AlertTriangle className={`w-4 h-4 ${nearestGhostDistance <= 4.0 ? 'text-red-400 animate-spin' : 'text-amber-400'}`} />
+              <span className="font-extrabold text-xs sm:text-sm tracking-wide">
+                {nearestGhostDistance <= 4.0
+                  ? '⚡ [경고등] 원혼 초근접! 즉시 퇴마/도주!'
+                  : nearestGhostDistance <= 7.0
+                  ? '🚨 [경고등] 원혼 급접근 중! 주의하십시오!'
+                  : '⚠️ [경고등] 원혼 10m 이내 접근 감지!'}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs font-bold bg-black/60 px-3 py-1 rounded-xl border border-white/10">
+              <span className="text-neutral-400">거리:</span>
+              <span
+                className={`font-mono text-sm tracking-widest ${
+                  nearestGhostDistance <= 4.0
+                    ? 'text-red-400 font-extrabold'
+                    : nearestGhostDistance <= 7.0
+                    ? 'text-rose-300'
+                    : 'text-amber-300'
+                }`}
+              >
+                {nearestGhostDistance.toFixed(1)} m
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* 🗡️ TOP QUEST STATUS BANNER (검, 부적, 유물 수습 현황 실시간 표시) */}
+        <div
+          id="top-relics-weapons-indicator"
+          className="self-center w-full max-w-3xl px-3 sm:px-4 py-2 rounded-2xl bg-neutral-950/90 border border-neutral-800/90 backdrop-blur-xl shadow-2xl flex items-center justify-between gap-2 sm:gap-3 flex-wrap font-mono text-xs"
+        >
+          <div className="flex items-center gap-1.5 text-neutral-400 font-semibold">
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <span className="text-[11px] sm:text-xs">퇴마 신물 수습 현황:</span>
+          </div>
+
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            {/* 1. 사인참사검 */}
+            <div
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl border transition-all duration-300 ${
+                hasSword
+                  ? 'bg-cyan-950/90 border-cyan-500/80 text-cyan-200 shadow-[0_0_12px_rgba(6,182,212,0.4)]'
+                  : 'bg-neutral-900/60 border-neutral-800 text-neutral-500'
+              }`}
+              title={hasSword ? '사인참사검 수습 완료 (3번 키로 장착)' : '사인참사검 미수습 (미로 속 보검대 수색)'}
+            >
+              <Sword className={`w-3.5 h-3.5 ${hasSword ? 'text-cyan-400 drop-shadow-[0_0_6px_rgba(34,211,238,0.8)]' : 'text-neutral-600'}`} />
+              <span className="font-bold text-[11px]">
+                {hasSword ? '✓ 사인참사검 [수습]' : '사인참사검 [미수습]'}
+              </span>
+            </div>
+
+            {/* 2. 구천응원 봉인부적 */}
+            <div
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl border transition-all duration-300 ${
+                hasTalisman
+                  ? 'bg-amber-950/90 border-amber-500/80 text-amber-200 shadow-[0_0_12px_rgba(245,158,11,0.4)]'
+                  : 'bg-neutral-900/60 border-neutral-800 text-neutral-500'
+              }`}
+              title={hasTalisman ? '봉인부적 수습 완료 (2번 키로 장착)' : '봉인부적 미수습 (미로 속 제단 수색)'}
+            >
+              <Scroll className={`w-3.5 h-3.5 ${hasTalisman ? 'text-amber-400 drop-shadow-[0_0_6px_rgba(251,191,36,0.8)]' : 'text-neutral-600'}`} />
+              <span className="font-bold text-[11px]">
+                {hasTalisman ? '✓ 봉인부적 [수습]' : '봉인부적 [미수습]'}
+              </span>
+            </div>
+
+            {/* 3. 유물 수습 현황 (20개) */}
+            <div
+              onClick={() => handleOpenModal('codex')}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl border transition-all duration-300 cursor-pointer ${
+                collectedRelics.length >= 20
+                  ? 'bg-emerald-950/90 border-emerald-500/80 text-emerald-200 shadow-[0_0_12px_rgba(16,185,129,0.4)] animate-pulse'
+                  : 'bg-neutral-900/60 border-neutral-800 text-neutral-300 hover:border-amber-700/60'
+              }`}
+              title="클릭하여 유물 도감 열기"
+            >
+              <BookOpen className={`w-3.5 h-3.5 ${collectedRelics.length >= 20 ? 'text-emerald-400' : 'text-amber-400'}`} />
+              <span className="font-bold text-[11px]">
+                유물: <span className={collectedRelics.length >= 20 ? 'text-emerald-300 font-extrabold' : 'text-amber-300'}>{collectedRelics.length}/20</span>
+                {collectedRelics.length >= 20 ? ' [완비!]' : ''}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* 3. Center Reticle / Crosshair & Interaction Prompt */}

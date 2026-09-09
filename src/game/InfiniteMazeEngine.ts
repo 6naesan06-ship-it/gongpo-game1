@@ -108,9 +108,14 @@ export class InfiniteMazeEngine {
   public isEscaped: boolean = false;
   public escapeMethod: 'relics' | 'kills' | 'boss' = 'boss';
 
-  // Player Lives & Resurrection State (목숨 2개 추가: 총 3목숨 / 제자리 부활 2회)
+  // Player Lives & Resurrection State (목숨 3개 시스템: 총 3목숨 / 제자리 부활 2회 / 핏자국 시스템)
+  public lives: number = 3;
+  public maxLives: number = 3;
   public extraLives: number = 2;
   public maxExtraLives: number = 2;
+  public bloodLevel: number = 0; // 0, 1, 2, 3 (부활할 때마다 화면 핏자국 증가)
+  public nearestGhostDistance: number = 999; // 귀신 10미터 이하 접근 감지용
+  public isPendingGameOver: boolean = false;
   public isInvincible: boolean = false;
   public invincibilityTimer: number = 0;
 
@@ -1362,10 +1367,15 @@ export class InfiniteMazeEngine {
       }
     }
 
-    // Safety revive check: if sanity drops to 0 and extraLives > 0, immediately revive on the spot!
+    // Safety revive check: if sanity drops to 0 and player has lives left, immediately revive on the spot!
     if (this.sanity <= 0 && !this.isEscaped) {
-      if (this.extraLives > 0) {
+      if (this.lives > 1) {
         this.revivePlayer();
+      } else {
+        this.lives = 0;
+        this.extraLives = 0;
+        this.bloodLevel = 3;
+        this.isPendingGameOver = true;
       }
     }
   }
@@ -1420,15 +1430,17 @@ export class InfiniteMazeEngine {
     ghost.state = 'wandering';
   }
 
-  // Revive player on the spot, restore sanity & stamina, and push ghosts 20m+ away!
+  // Revive player on the spot, restore sanity & stamina, increment bloodLevel, and push ghosts 25m+ away!
   public revivePlayer(triggeringGhost?: ActiveGhost) {
-    if (this.extraLives <= 0) return;
+    if (this.lives <= 1) return;
 
-    this.extraLives--;
+    this.lives--;
+    this.extraLives = Math.max(0, this.lives - 1);
+    this.bloodLevel = Math.min(3, this.bloodLevel + 1);
     this.sanity = this.maxSanity; // 그 자리에서 정신력 100% 완전 회복!
     this.stamina = this.maxStamina; // 스태미나 200 완전 충전!
     this.isInvincible = true;
-    this.invincibilityTimer = 4.5; // 4.5초간 성스러운 가호 무적 결계 부여
+    this.invincibilityTimer = 6.0; // 6초간 성스러운 가호 무적 결계 부여 (3초 점프스케어 + 부활 후 3초 무적)
 
     // Audio: Holy resurrection & talisman chant
     mazeAudio.playItemAcquire();
@@ -1446,17 +1458,17 @@ export class InfiniteMazeEngine {
       }, 1600);
     }
 
-    // Push back the triggering ghost by 20+ meters
+    // Push back the triggering ghost by 25+ meters
     if (triggeringGhost) {
-      this.pushGhostFarAway(triggeringGhost, 22.5);
+      this.pushGhostFarAway(triggeringGhost, 25.0);
     }
 
-    // Also push back all other ghosts within 18 meters by 20+ meters
+    // Also push back all other ghosts within 20 meters by 25+ meters
     this.dynamicGhosts.forEach((g) => {
       if (g !== triggeringGhost) {
         const d = g.pos.distanceTo(this.playerPos);
-        if (d < 18.0) {
-          this.pushGhostFarAway(g, 22.0);
+        if (d < 20.0) {
+          this.pushGhostFarAway(g, 25.0);
         }
       }
     });
@@ -1479,7 +1491,7 @@ export class InfiniteMazeEngine {
       this.onHauntedEvent({
         id: `revive_${Date.now()}`,
         type: 'player_revived',
-        message: `[신령의 수호: 제자리 부활!] 원혼에게 붙잡혔으나 영험한 가호로 그 자리에서 되살아났습니다! (남은 목숨: ${this.extraLives}개) 주위 귀신이 20m 밖으로 퇴치되었습니다!`,
+        message: `[신령의 수호: 제자리 부활!] 원혼에게 붙잡혔으나 영험한 가호로 부활했습니다! (남은 목숨: ${this.lives}개) 주변 원혼이 25m 밖으로 격퇴되고 화면에 핏자국이 새겨집니다.`,
         sanityDrain: 0,
       });
     }
@@ -1755,6 +1767,7 @@ export class InfiniteMazeEngine {
       if (!this.collectedRelics.some((r) => r.id === relic.id)) {
         this.collectedRelics.push(relic);
         mazeAudio.playShamanBell();
+        if (this.onStatsUpdate) this.onStatsUpdate();
 
         const currentRelics = this.collectedRelics.length;
         if (this.onHauntedEvent) {
@@ -2725,16 +2738,20 @@ export class InfiniteMazeEngine {
           const variant = ghost.variant === 'shadow_specter' ? 'shadow_specter' : 'white_maiden';
           const ghostName = ghost.name || '원혼';
 
-          // Trigger terrifying jumpscare (shriek audio, screen strobe, face lunge & camera shake)
+          // Trigger terrifying jumpscare (shriek audio, screen strobe, face lunge & camera shake - 3초간 지속)
           this.triggerJumpscare(variant, ghostName, 30);
 
-          // Caught by ghost: If extra lives remain, revive on the spot and push ghost 20m+ away!
-          if (this.extraLives > 0) {
+          // Caught by ghost: If player has lives remaining (> 1), consume life and revive on the spot!
+          if (this.lives > 1) {
             this.revivePlayer(ghost);
           } else {
-            // Fatal capture on last remaining life: drop sanity to 0
+            // Fatal capture on last remaining life:
+            this.lives = 0;
+            this.extraLives = 0;
+            this.bloodLevel = 3;
             this.sanity = 0;
-            this.pushGhostFarAway(ghost, 22.0);
+            this.isPendingGameOver = true;
+            this.pushGhostFarAway(ghost, 25.0);
             if (this.onHauntedEvent) {
               this.onHauntedEvent({
                 id: `ghost_attack_${Date.now()}_${ghost.id}`,
@@ -2796,7 +2813,7 @@ export class InfiniteMazeEngine {
       this.sanity = Math.max(0, this.sanity - delta * 2.5);
     }
 
-    // Compute nearest active ghost distance for audio tension & heartbeat
+    // Compute nearest active ghost distance for audio tension, heartbeat & proximity warning light
     let nearestGhostDist = 999;
     for (const ghost of this.dynamicGhosts) {
       if (ghost.isDead) continue;
@@ -2805,6 +2822,15 @@ export class InfiniteMazeEngine {
         nearestGhostDist = dist;
       }
     }
+
+    if (this.isBossFightActive && this.bossState.active && this.bossMesh) {
+      const bDist = this.bossPos.distanceTo(this.playerPos);
+      if (bDist < nearestGhostDist) {
+        nearestGhostDist = bDist;
+      }
+    }
+
+    this.nearestGhostDistance = nearestGhostDist;
 
     // Update real-time dynamic heartbeat and horror background sound (active when SAN <= 30% or ghost is near)
     mazeAudio.updateSanityHeartbeat(
